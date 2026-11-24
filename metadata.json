@@ -1,0 +1,6 @@
+{
+  "name": "ドット迷宮紀行",
+  "description": "拠点でアイテムや加護・味方を整え、5つの持ち物で自動攻略に挑むドット絵ダンジョンRPG",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
