@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Award, Compass, HelpCircle, Lock, Repeat, RotateCcw, Sparkles, Trash2, Zap } from 'lucide-react';
+import dungeonDepthsImg from '../assets/images/pixel_dungeon_depths_1795345080012.jpg';
+import shrineAltarImg from '../assets/images/pixel_sanctuary_altar_1795345079265.jpg';
 import {
   ACHIEVEMENTS,
   ALLIES,
@@ -1088,7 +1090,7 @@ export const TownView: React.FC<TownViewProps> = ({
               <div className="md:col-span-5 overflow-hidden border border-[#2e3446] bg-[#12151d] aspect-[4/3]">
                 {!shrineImgErr ? (
                   <img
-                    src="/src/assets/images/pixel_sanctuary_altar_1795345079265.jpg"
+                    src={shrineAltarImg}
                     alt="加護の祭壇"
                     referrerPolicy="no-referrer"
                     onError={() => setShrineImgErr(true)}
@@ -3011,7 +3013,7 @@ export const TownView: React.FC<TownViewProps> = ({
           <div className="relative h-28 bg-[#12151d] border-b border-[#2b3040]">
             {!gateImgErr ? (
               <img
-                src="/src/assets/images/pixel_dungeon_depths_1795345080012.jpg"
+                src={dungeonDepthsImg}
                 alt="ダンジョン入口"
                 referrerPolicy="no-referrer"
                 onError={() => setGateImgErr(true)}
