@@ -32,6 +32,7 @@ import {
   FORGE_RECIPES,
   getAllyGearCost,
   getAllyTrainBulkCost,
+  getAllyTrainStepCost,
   getCompendiumStats,
   getEffectiveTotalMeterCap,
   getEffectiveTypeMeterCap,
@@ -1002,10 +1003,7 @@ export default function App() {
       if (!ally) return;
       setSave((prev) => {
         const lv = prev.hiredAllies[allyId] ?? 0;
-        const cost =
-          lv === 0
-            ? ally.hireCost
-            : Math.round(ally.upgradeBaseCost * Math.pow(1.42, lv - 1));
+        const cost = getAllyTrainStepCost(ally, lv);
         if (prev.gold < cost) return prev;
 
         sound.buy();

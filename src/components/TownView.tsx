@@ -21,6 +21,7 @@ import {
   getActiveSynergies,
   getAllyGearCost,
   getAllyTrainBulkCost,
+  getAllyTrainStepCost,
   getCompendiumBonuses,
   getCompendiumStats,
   getEffectiveDiveLoop,
@@ -1274,7 +1275,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 const rank = save.allyAwakenings[ally.id] ?? 0;
                 const gearLv = (save.allyGearLevels ?? {})[ally.id] ?? 0;
                 const isActive = save.activeAllies.includes(ally.id);
-                const cost = lv === 0 ? ally.hireCost : Math.round(ally.upgradeBaseCost * Math.pow(1.42, lv - 1));
+                const cost = getAllyTrainStepCost(ally, lv);
                 const canAfford = save.gold >= cost;
 
                 const awGold = 75 + rank * 75;
