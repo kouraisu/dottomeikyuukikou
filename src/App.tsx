@@ -36,6 +36,7 @@ import {
   getEffectiveTotalMeterCap,
   getEffectiveTypeMeterCap,
   getHeroTrainBulkCost,
+  getHeroTrainStepCost,
   getItemMeterCost,
   getItemRefineCost,
   getItemSalvageReward,
@@ -1201,7 +1202,7 @@ export default function App() {
 
   const handleTrainHero = useCallback(() => {
     setSave((prev) => {
-      const cost = 55 + (prev.heroUpgradeLevel - 1) * 45;
+      const cost = getHeroTrainStepCost(prev.heroUpgradeLevel);
       if (prev.gold < cost) return prev;
       const nextLv = prev.heroUpgradeLevel + 1;
       const gainedSp = nextLv % 5 === 0 ? 1 : 0;

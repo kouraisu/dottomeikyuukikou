@@ -29,6 +29,7 @@ import {
   getEnemyStageHint,
   getFeatureUnlocks,
   getHeroTrainBulkCost,
+  getHeroTrainStepCost,
   getItemEffectiveAutoPower,
   getItemEffectiveStats,
   getItemMeterCost,
@@ -232,7 +233,7 @@ export const TownView: React.FC<TownViewProps> = ({
     [save.unlockedSkills, save.spMasteryLevel]
   );
   const selectedStage = STAGES.find((s) => s.id === save.selectedStageId) ?? STAGES[0];
-  const heroTrainCost = 55 + (save.heroUpgradeLevel - 1) * 45;
+  const heroTrainCost = getHeroTrainStepCost(save.heroUpgradeLevel);
   const heroMilestoneSteps = getNextHeroMilestoneSteps(save.heroUpgradeLevel);
   const heroBulkCost = getHeroTrainBulkCost(save.heroUpgradeLevel, heroMilestoneSteps);
   const heroTargetLv = save.heroUpgradeLevel + heroMilestoneSteps;
