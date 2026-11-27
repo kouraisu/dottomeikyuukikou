@@ -14361,7 +14361,7 @@ function clampSpeedToUnlocked(speed, save) {
 	return candidate <= maxSpd ? candidate : maxSpd;
 }
 function getHeroTrainStepCost(level) {
-	return Math.round(55 * Math.pow(1.12, Math.max(0, level - 1)));
+	return Math.round(55 * Math.pow(1.1315, Math.max(0, level - 1)));
 }
 function getNextHeroMilestoneSteps(level) {
 	const rem = level % 5;
@@ -14373,7 +14373,7 @@ function getHeroTrainBulkCost(currentLevel, steps) {
 	return total;
 }
 function getAllyTrainStepCost(ally, currentLevel) {
-	return currentLevel === 0 ? ally.hireCost : Math.round(ally.upgradeBaseCost * Math.pow(1.22, currentLevel - 1));
+	return currentLevel === 0 ? ally.hireCost : Math.round(ally.upgradeBaseCost * Math.pow(1.212, currentLevel - 1));
 }
 function getAllyTrainBulkCost(ally, currentLevel, steps) {
 	let total = 0;
