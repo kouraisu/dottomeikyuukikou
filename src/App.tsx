@@ -9,6 +9,7 @@ import {
   EventChoiceSelection,
   ExpeditionHudSnapshot,
 } from './components/DungeonCanvas';
+import { CustomAllyModal } from './components/CustomAllyModal';
 import { ExpeditionView } from './components/ExpeditionView';
 import { HistoryModal } from './components/HistoryModal';
 import { PixelSprite } from './components/PixelSprite';
@@ -19,7 +20,6 @@ import {
   ACHIEVEMENTS,
   ALL_ACHIEVEMENT_IDS,
   ALL_SECRET_ACHIEVEMENT_IDS,
-  ALLIES,
   areAllAchievementsUnlocked,
   AUTO_EQUIP_STYLE_META,
   BLESSINGS,
@@ -29,11 +29,13 @@ import {
   CONVENIENCE_UPGRADE_IDS,
   createDefaultPresets,
   CREST_EXCHANGE_OPTIONS,
+  CUSTOM_ALLY_ID,
   FEATURE_UNLOCKS,
   FeatureAnnouncementDef,
   FeatureUnlockDef,
   FORGE_EXCLUSIVE_ITEM_IDS,
   FORGE_RECIPES,
+  getAllyDef,
   getAllyGearCost,
   getAllyTrainBulkCost,
   getAllyTrainStepCost,
@@ -79,11 +81,13 @@ import {
   sanitizeSaveState,
 } from './game/saveCodec';
 import { BgmTrack, BGM_TRACK_LABELS, sound } from './game/sound';
+import { syncCustomAllySprite } from './game/pixelSprites';
 import {
   AchievementDef,
   AutoEquipPlaystyle,
   CombatLogEntry,
   ConvenienceUpgradeId,
+  CustomAllyConfig,
   DungeonEventDef,
   DungeonEventOption,
   EventChoiceMode,
@@ -118,7 +122,10 @@ export default function App() {
   const [bgmMuted, setBgmMuted] = useState(() => sound.bgmMuted);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [customAllyOpen, setCustomAllyOpen] = useState(false);
   const [retreatSignal, setRetreatSignal] = useState(0);
+  const [retreatConfirm, setRetreatConfirm] = useState(false);
+  const retreatGuardUntilRef = useRef<number>(0);
   const [hud, setHud] = useState<ExpeditionHudSnapshot | null>(null);
   const [logs, setLogs] = useState<CombatLogEntry[]>([]);
   const [pendingEvent, setPendingEvent] = useState<DungeonEventDef | null>(null);
@@ -131,6 +138,12 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [expeditionRunId, setExpeditionRunId] = useState(0);
   const lastPlayTickRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (!retreatConfirm) return;
+    const t = window.setTimeout(() => setRetreatConfirm(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [retreatConfirm]);
 
   const addLifetimeDelta = (
     prevStats: LifetimeStats | undefined,
@@ -240,6 +253,10 @@ export default function App() {
   useEffect(() => {
     sound.setBgmDucked(screen === 'EXPEDITION' && paused);
   }, [screen, paused]);
+
+  useEffect(() => {
+    syncCustomAllySprite(save.customAlly);
+  }, [save.customAlly]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1274,9 +1291,9 @@ export default function App() {
 
   const handleHireOrUpgradeAlly = useCallback(
     (allyId: string) => {
-      const ally = ALLIES.find((a) => a.id === allyId);
-      if (!ally) return;
       setSave((prev) => {
+        const ally = getAllyDef(allyId, prev);
+        if (!ally) return prev;
         const lv = prev.hiredAllies[allyId] ?? 0;
         const cost = getAllyTrainStepCost(ally, lv);
         if (prev.gold < cost) return prev;
@@ -1313,9 +1330,9 @@ export default function App() {
 
   const handleBulkTrainAlly = useCallback(
     (allyId: string) => {
-      const ally = ALLIES.find((a) => a.id === allyId);
-      if (!ally) return;
       setSave((prev) => {
+        const ally = getAllyDef(allyId, prev);
+        if (!ally) return prev;
         if (!hasConvenience(prev, 'conv_bulk_ops')) {
           showNotice('「一括育成＆ショップ補充」をスキルツリーで解放してください');
           return prev;
@@ -1346,9 +1363,9 @@ export default function App() {
 
   const handleAwakenAlly = useCallback(
     (allyId: string) => {
-      const ally = ALLIES.find((a) => a.id === allyId);
-      if (!ally) return;
       setSave((prev) => {
+        const ally = getAllyDef(allyId, prev);
+        if (!ally) return prev;
         const lv = prev.hiredAllies[allyId] ?? 0;
         const rank = prev.allyAwakenings[allyId] ?? 0;
         if (lv <= 0 || rank >= 3) return prev;
@@ -1399,9 +1416,9 @@ export default function App() {
 
   const handleUpgradeAllyGear = useCallback(
     (allyId: string) => {
-      const ally = ALLIES.find((a) => a.id === allyId);
-      if (!ally) return;
       setSave((prev) => {
+        const ally = getAllyDef(allyId, prev);
+        if (!ally) return prev;
         const lv = prev.hiredAllies[allyId] ?? 0;
         const gearLv = (prev.allyGearLevels ?? {})[allyId] ?? 0;
         if (lv <= 0 || gearLv >= 5) return prev;
@@ -1447,6 +1464,39 @@ export default function App() {
       });
     },
     [evaluateAchievements, showNotice]
+  );
+
+  const handleSaveCustomAlly = useCallback(
+    (nextConfig: CustomAllyConfig) => {
+      syncCustomAllySprite(nextConfig);
+      setSave((prev) => {
+        const firstTime = !prev.customAlly?.created;
+        const prevLv = prev.hiredAllies[CUSTOM_ALLY_ID] ?? 0;
+        const nextLv = Math.max(1, prevLv);
+        const nextActive = [...prev.activeAllies];
+        if (firstTime && !nextActive.includes(CUSTOM_ALLY_ID) && nextActive.length < 2) {
+          nextActive.push(CUSTOM_ALLY_ID);
+        }
+        sound.heal();
+        showNotice(
+          firstTime
+            ? `オリキャラ「${nextConfig.name}」が酒場に誕生しました！`
+            : `オリキャラ「${nextConfig.name}」の設定を更新しました！`
+        );
+        return {
+          ...prev,
+          customAlly: nextConfig,
+          hiredAllies: {
+            ...prev.hiredAllies,
+            [CUSTOM_ALLY_ID]: nextLv,
+          },
+          activeAllies: nextActive,
+          partyOrder: reconcilePartyOrder(prev.partyOrder, nextActive),
+        };
+      });
+      setCustomAllyOpen(false);
+    },
+    [showNotice]
   );
 
   const handleToggleAlly = useCallback((allyId: string) => {
@@ -1763,6 +1813,8 @@ export default function App() {
     setPendingEvent(null);
     setEventSelection(null);
     setPaused(false);
+    setRetreatConfirm(false);
+    retreatGuardUntilRef.current = Date.now() + 1200;
     setRetreatSignal(0);
     setExpeditionRunId((id) => id + 1);
     setScreen('EXPEDITION');
@@ -1776,6 +1828,8 @@ export default function App() {
     setPendingEvent(null);
     setEventSelection(null);
     setPaused(false);
+    setRetreatConfirm(false);
+    retreatGuardUntilRef.current = Date.now() + 1200;
     setRetreatSignal(0);
     setExpeditionRunId((id) => id + 1);
     setScreen('EXPEDITION');
@@ -1794,6 +1848,7 @@ export default function App() {
   const handleExpeditionComplete = useCallback(
     (result: ExpeditionResult) => {
       flushPlayTime();
+      setRetreatConfirm(false);
       setPendingEvent(null);
       const matsTotal =
         (result.materialsEarned.iron_ore ?? 0) +
@@ -2164,24 +2219,60 @@ export default function App() {
             {screen === 'TOWN' ? (
               <button
                 type="button"
-                onClick={handleStartExpedition}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  handleStartExpedition();
+                }}
                 className="px-4 py-2 text-xs sm:text-sm font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 ダンジョンへ出発
               </button>
             ) : screen === 'EXPEDITION' ? (
-              <button
-                type="button"
-                onClick={() => setRetreatSignal((n) => n + 1)}
-                className="px-4 py-2 text-xs sm:text-sm font-bold bg-rose-700 hover:bg-rose-600 text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                拠点へ撤退
-              </button>
+              !retreatConfirm ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    if (Date.now() < retreatGuardUntilRef.current) return;
+                    sound.click();
+                    setRetreatConfirm(true);
+                  }}
+                  className="px-4 py-2 text-xs sm:text-sm font-bold bg-rose-700 hover:bg-rose-600 text-white transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  拠点へ撤退
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.click();
+                      setRetreatConfirm(false);
+                    }}
+                    className="px-2.5 py-2 text-xs font-medium bg-[#252a38] hover:bg-[#31384a] text-slate-200 border border-[#3a4156] whitespace-nowrap cursor-pointer"
+                  >
+                    続行
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.currentTarget.blur();
+                      setRetreatConfirm(false);
+                      setRetreatSignal((n) => n + 1);
+                    }}
+                    className="px-3 py-2 text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-500 text-white border border-rose-300 transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    撤退確定
+                  </button>
+                </div>
+              )
             ) : (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.currentTarget.blur();
                   sound.click();
+                  setRetreatConfirm(false);
                   setScreen('TOWN');
                   setTownTab('PREP');
                 }}
@@ -2272,6 +2363,10 @@ export default function App() {
             onToggleAutoRepeat={handleToggleAutoRepeat}
             onToggleAutoRestock={handleToggleAutoRestock}
             onStartExpedition={handleStartExpedition}
+            onOpenCustomAlly={() => {
+              sound.click();
+              setCustomAllyOpen(true);
+            }}
             onOpenHistory={() => {
               sound.click();
               flushPlayTime();
@@ -2429,6 +2524,17 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {customAllyOpen && (
+        <CustomAllyModal
+          config={save.customAlly}
+          onSave={handleSaveCustomAlly}
+          onClose={() => {
+            sound.click();
+            setCustomAllyOpen(false);
+          }}
+        />
       )}
 
       {historyOpen && (

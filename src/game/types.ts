@@ -132,7 +132,26 @@ export interface BlessingDef {
   };
 }
 
-export type AllyRole = 'HEALER' | 'TANK' | 'RANGER' | 'MAGE' | 'THIEF';
+export type AllyRole = 'HEALER' | 'TANK' | 'RANGER' | 'MAGE' | 'THIEF' | 'ALLROUNDER';
+
+export type CustomAllyStyle = 'BALANCED' | 'TANK' | 'HEALER' | 'RANGER' | 'MAGE' | 'THIEF';
+export type CustomAllyBody = 'NEKO' | 'HUMANOID' | 'SLIME' | 'GOLEM';
+export type CustomAllyHeadgear = 'NONE' | 'CAT_EARS' | 'RIBBON' | 'WIZARD_HAT' | 'CROWN' | 'HORNS';
+export type CustomAllyWeapon = 'NONE' | 'SWORD' | 'STAFF' | 'BOW' | 'SHIELD';
+
+export interface CustomAllyConfig {
+  created: boolean;
+  name: string;
+  title: string;
+  style: CustomAllyStyle;
+  body: CustomAllyBody;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  headgear: CustomAllyHeadgear;
+  weapon: CustomAllyWeapon;
+  customPixels: string[] | null; // 256-length 16x16 grid of hex colors or ''
+}
 
 export interface AllyDef {
   id: string;
@@ -150,6 +169,7 @@ export interface AllyDef {
   skillDescription: string;
   passiveBonusText: string;
   awakeningBonusText: (rank: number) => string;
+  isCustom?: boolean;
 }
 
 export interface EnemyDef {
@@ -436,6 +456,7 @@ export interface SaveState {
   itemRefineLevels: Record<string, number>; // Forge +0..+5 item refinement levels in current loop
   seenAnnouncements: string[]; // Feature / milestone unlock announcement IDs already acknowledged
   lifetimeStats: LifetimeStats; // Cumulative play history & economy/combat statistics
+  customAlly: CustomAllyConfig; // Player-created original Tavern ally (like Massara-nyan)
 }
 
 export interface RunHistoryEntry {
@@ -532,6 +553,7 @@ export interface ExpeditionResult {
   totalHealingDone?: number;
   bossesDefeated?: number;
   consumableActivations?: number;
+  wasManualRetreat?: boolean;
 }
 
 export interface CombatLogEntry {

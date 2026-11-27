@@ -4,6 +4,7 @@ import {
   CONVENIENCE_UPGRADE_IDS,
   createDefaultPresets,
   getMaxStageForLoop,
+  INITIAL_CUSTOM_ALLY,
   INITIAL_LIFETIME_STATS,
   INITIAL_SAVE_STATE,
   INITIAL_TOTAL_METER_CAP,
@@ -15,6 +16,11 @@ import {
 } from './data';
 import {
   ConvenienceUpgradeId,
+  CustomAllyBody,
+  CustomAllyConfig,
+  CustomAllyHeadgear,
+  CustomAllyStyle,
+  CustomAllyWeapon,
   LifetimeStats,
   LoadoutPreset,
   RunHistoryEntry,
@@ -340,6 +346,48 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
         totalMaterialsEarned: num(raw.totalMaterialsEarned),
         totalReincarnations: num(raw.totalReincarnations),
         recentRuns,
+      };
+    })(),
+    customAlly: (() => {
+      const raw = (parsed.customAlly ?? {}) as Partial<CustomAllyConfig>;
+      const validStyles: CustomAllyStyle[] = ['BALANCED', 'TANK', 'HEALER', 'RANGER', 'MAGE', 'THIEF'];
+      const validBodies: CustomAllyBody[] = ['NEKO', 'HUMANOID', 'SLIME', 'GOLEM'];
+      const validHeadgears: CustomAllyHeadgear[] = ['NONE', 'CAT_EARS', 'RIBBON', 'WIZARD_HAT', 'CROWN', 'HORNS'];
+      const validWeapons: CustomAllyWeapon[] = ['NONE', 'SWORD', 'STAFF', 'BOW', 'SHIELD'];
+      const hexOk = (v: unknown, fallback: string) =>
+        typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
+      const customPixels =
+        Array.isArray(raw.customPixels) &&
+        raw.customPixels.length === 256 &&
+        raw.customPixels.every((c) => c === '' || (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)))
+          ? raw.customPixels
+          : null;
+      return {
+        created: Boolean(raw.created),
+        name:
+          typeof raw.name === 'string' && raw.name.trim()
+            ? raw.name.trim().slice(0, 14)
+            : INITIAL_CUSTOM_ALLY.name,
+        title:
+          typeof raw.title === 'string'
+            ? raw.title.trim().slice(0, 12)
+            : INITIAL_CUSTOM_ALLY.title,
+        style: validStyles.includes(raw.style as CustomAllyStyle)
+          ? (raw.style as CustomAllyStyle)
+          : INITIAL_CUSTOM_ALLY.style,
+        body: validBodies.includes(raw.body as CustomAllyBody)
+          ? (raw.body as CustomAllyBody)
+          : INITIAL_CUSTOM_ALLY.body,
+        primaryColor: hexOk(raw.primaryColor, INITIAL_CUSTOM_ALLY.primaryColor),
+        secondaryColor: hexOk(raw.secondaryColor, INITIAL_CUSTOM_ALLY.secondaryColor),
+        accentColor: hexOk(raw.accentColor, INITIAL_CUSTOM_ALLY.accentColor),
+        headgear: validHeadgears.includes(raw.headgear as CustomAllyHeadgear)
+          ? (raw.headgear as CustomAllyHeadgear)
+          : INITIAL_CUSTOM_ALLY.headgear,
+        weapon: validWeapons.includes(raw.weapon as CustomAllyWeapon)
+          ? (raw.weapon as CustomAllyWeapon)
+          : INITIAL_CUSTOM_ALLY.weapon,
+        customPixels,
       };
     })(),
   };

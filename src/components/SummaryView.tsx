@@ -66,17 +66,17 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
     if (!canAutoRepeat || !autoRepeatEnabled || !onRetryStage) return;
     setCountdown(3);
     const id = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(id);
-          onRetryStage();
-          return 0;
-        }
-        return prev - 1;
-      });
+      setCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
     return () => clearInterval(id);
   }, [canAutoRepeat, autoRepeatEnabled, onRetryStage]);
+
+  useEffect(() => {
+    if (!canAutoRepeat || !autoRepeatEnabled || !onRetryStage) return;
+    if (countdown === 0) {
+      onRetryStage();
+    }
+  }, [countdown, canAutoRepeat, autoRepeatEnabled, onRetryStage]);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -108,10 +108,14 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
                 ? '模擬踏破（仮潜入）'
                 : '模擬撤退（仮潜入）'
               : result.isEndless
-                ? `無限回廊 帰還（${result.reachedFloor}F）`
+                ? result.wasManualRetreat
+                  ? `無限回廊 任意撤退（${result.reachedFloor}F）`
+                  : `無限回廊 敗北帰還（${result.reachedFloor}F）`
                 : result.victory
                   ? 'ステージ踏破！'
-                  : '敗北・拠点へ帰還'}
+                  : result.wasManualRetreat
+                    ? '任意撤退・拠点へ帰還'
+                    : '敗北・拠点へ帰還'}
           </h2>
           <p className="text-sm text-slate-300">{result.causeOfReturn}</p>
         </div>

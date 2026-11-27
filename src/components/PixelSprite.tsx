@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { getSpriteCanvas } from '../game/pixelSprites';
+import React, { useEffect, useRef, useState } from 'react';
+import { getCustomSpriteVersion, getSpriteCanvas, subscribeCustomSprite } from '../game/pixelSprites';
 
 interface PixelSpriteProps {
   id: string;
@@ -15,6 +15,15 @@ export const PixelSprite: React.FC<PixelSpriteProps> = ({
   flipX = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [customVer, setCustomVer] = useState(() => getCustomSpriteVersion());
+
+  useEffect(() => {
+    if (id !== 'ally_custom') return;
+    setCustomVer(getCustomSpriteVersion());
+    return subscribeCustomSprite(() => {
+      setCustomVer(getCustomSpriteVersion());
+    });
+  }, [id]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -33,7 +42,7 @@ export const PixelSprite: React.FC<PixelSpriteProps> = ({
     }
     ctx.drawImage(src, 0, 0, canvas.width, canvas.height);
     ctx.restore();
-  }, [id, size, flipX]);
+  }, [id, size, flipX, customVer]);
 
   return (
     <canvas

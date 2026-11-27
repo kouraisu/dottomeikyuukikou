@@ -6,6 +6,8 @@ import {
   BlessingDef,
   ConvenienceUpgradeDef,
   ConvenienceUpgradeId,
+  CustomAllyConfig,
+  CustomAllyStyle,
   DungeonEventDef,
   EnemyDef,
   ForgeRecipe,
@@ -1329,6 +1331,159 @@ export const ALLIES: AllyDef[] = [
   },
 ];
 
+export const CUSTOM_ALLY_ID = 'custom_ally';
+
+export const CUSTOM_ALLY_STYLE_META: Record<
+  CustomAllyStyle,
+  {
+    label: string;
+    roleName: string;
+    role: AllyDef['role'];
+    baseHp: number;
+    baseAtk: number;
+    baseDef: number;
+    attackIntervalMs: number;
+    range: 'MELEE' | 'RANGED';
+    skillDescription: string;
+    passiveBonusText: string;
+    awakeningBonusText: (rank: number) => string;
+  }
+> = {
+  BALANCED: {
+    label: 'まっさら（バランス型）',
+    roleName: '自由万能',
+    role: 'ALLROUNDER',
+    baseHp: 85,
+    baseAtk: 11,
+    baseDef: 5,
+    attackIntervalMs: 1450,
+    range: 'MELEE',
+    skillDescription: '堅実に戦いながら、3回に1度みんなに小さな応援回復を届ける気楽な相棒。',
+    passiveBonusText: '攻防バランスの良い万能タイプ',
+    awakeningBonusText: (rank) =>
+      `特技覚醒 ★${rank}/3: 応援回復 +${rank * 12}% · 堅実な小連撃`,
+  },
+  TANK: {
+    label: 'まもり（前衛盾型）',
+    roleName: 'おまもり役',
+    role: 'TANK',
+    baseHp: 120,
+    baseAtk: 9,
+    baseDef: 9,
+    attackIntervalMs: 1600,
+    range: 'MELEE',
+    skillDescription: '前に立ってパーティを守る盾役（重騎士ガルドより控えめな手軽タイプ）。',
+    passiveBonusText: '防御とHPが高めで前衛向き',
+    awakeningBonusText: (rank) =>
+      `特技覚醒 ★${rank}/3: 被ダメージ -${rank * 6}% · 反撃小強化`,
+  },
+  HEALER: {
+    label: 'いやし（回復支援型）',
+    roleName: 'ちいさな癒やし手',
+    role: 'HEALER',
+    baseHp: 70,
+    baseAtk: 10,
+    baseDef: 4,
+    attackIntervalMs: 1850,
+    range: 'RANGED',
+    skillDescription: '傷ついた味方をやさしく回復し、合間に攻撃もこなす癒やし系。',
+    passiveBonusText: '単体回復で道中の安定感を底上げ',
+    awakeningBonusText: (rank) =>
+      `特技覚醒 ★${rank}/3: 回復倍率 +${rank * 20}% · 全体小回復確率追加`,
+  },
+  RANGER: {
+    label: 'はやわざ（遠距離連射型）',
+    roleName: '軽快スナイパー',
+    role: 'RANGER',
+    baseHp: 72,
+    baseAtk: 13,
+    baseDef: 4,
+    attackIntervalMs: 1280,
+    range: 'RANGED',
+    skillDescription: '後ろからテンポよく矢や光弾を放ち、会心でチクチク援護する遠距離型。',
+    passiveBonusText: '会心率が高く後衛から攻撃',
+    awakeningBonusText: (rank) =>
+      `特技覚醒 ★${rank}/3: 会心率 +${rank * 6}% · 攻撃速度 +${rank * 5}%`,
+  },
+  MAGE: {
+    label: 'まほう（範囲魔法型）',
+    roleName: '見習い魔導士',
+    role: 'MAGE',
+    baseHp: 66,
+    baseAtk: 15,
+    baseDef: 3,
+    attackIntervalMs: 1920,
+    range: 'RANGED',
+    skillDescription: '3回に1度、小さな範囲魔法で敵全体をまとめて攻撃する魔法型。',
+    passiveBonusText: '複数敵に有効な範囲魔法を所持',
+    awakeningBonusText: (rank) =>
+      `特技覚醒 ★${rank}/3: 魔法威力 +${rank * 16}% · 魔力小強化`,
+  },
+  THIEF: {
+    label: 'おたから（財宝探索型）',
+    roleName: '気まぐれトレジャー',
+    role: 'THIEF',
+    baseHp: 74,
+    baseAtk: 11,
+    baseDef: 4,
+    attackIntervalMs: 1100,
+    range: 'MELEE',
+    skillDescription: '素早い手数で敵を叩きつつ、見つけた金貨をちょっと増やしてくれる探索型。',
+    passiveBonusText: '獲得ゴールド +10%（罠解除はカイト専用）',
+    awakeningBonusText: (rank) =>
+      `特技覚醒 ★${rank}/3: 獲得Gさらに +${rank * 5}% · 攻撃速度 +${rank * 5}%`,
+  },
+};
+
+export const INITIAL_CUSTOM_ALLY: CustomAllyConfig = {
+  created: false,
+  name: 'まっさらちゃん',
+  title: 'オリキャラ',
+  style: 'BALANCED',
+  body: 'NEKO',
+  primaryColor: '#f8fafc',
+  secondaryColor: '#38bdf8',
+  accentColor: '#f43f5e',
+  headgear: 'NONE',
+  weapon: 'SWORD',
+  customPixels: null,
+};
+
+export function getCustomAllyDef(cfg?: CustomAllyConfig): AllyDef {
+  const safe = cfg ?? INITIAL_CUSTOM_ALLY;
+  const meta = CUSTOM_ALLY_STYLE_META[safe.style] ?? CUSTOM_ALLY_STYLE_META.BALANCED;
+  const displayName = (safe.name || '').trim() || 'まっさらちゃん';
+  const customTitle = (safe.title || '').trim();
+  return {
+    id: CUSTOM_ALLY_ID,
+    name: displayName,
+    roleName: customTitle ? `${customTitle} · ${meta.roleName}` : `オリキャラ · ${meta.roleName}`,
+    role: meta.role,
+    spriteId: 'ally_custom',
+    hireCost: 80,
+    upgradeBaseCost: 110,
+    baseHp: meta.baseHp,
+    baseAtk: meta.baseAtk,
+    baseDef: meta.baseDef,
+    attackIntervalMs: meta.attackIntervalMs,
+    range: meta.range,
+    skillDescription: meta.skillDescription,
+    passiveBonusText: meta.passiveBonusText,
+    awakeningBonusText: meta.awakeningBonusText,
+    isCustom: true,
+  };
+}
+
+export function getAllyDef(
+  allyId: string,
+  save?: Pick<SaveState, 'customAlly'>
+): AllyDef | undefined {
+  if (allyId === CUSTOM_ALLY_ID) {
+    return getCustomAllyDef(save?.customAlly);
+  }
+  return ALLIES.find((a) => a.id === allyId);
+}
+
 export const ENEMIES: Record<string, EnemyDef> = {
   slime: {
     id: 'slime',
@@ -2582,6 +2737,7 @@ export const INITIAL_SAVE_STATE: SaveState = {
     totalReincarnations: 0,
     recentRuns: [],
   },
+  customAlly: { ...INITIAL_CUSTOM_ALLY },
 };
 
 export const INITIAL_LIFETIME_STATS: LifetimeStats = INITIAL_SAVE_STATE.lifetimeStats;
@@ -3962,7 +4118,7 @@ export function computePartyPower(save: SaveState): number {
     const lv = save.hiredAllies[allyId] ?? 0;
     const rank = save.allyAwakenings[allyId] ?? 0;
     const gear = (save.allyGearLevels ?? {})[allyId] ?? 0;
-    const ally = ALLIES.find((a) => a.id === allyId);
+    const ally = getAllyDef(allyId, save);
     if (!ally || lv <= 0) return;
     const atkMult =
       (1 + (lv - 1) * 0.2 + rank * 0.12 + gear * 0.16) *

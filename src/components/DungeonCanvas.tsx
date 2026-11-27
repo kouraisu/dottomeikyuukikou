@@ -1,14 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import {
-  ALLIES,
   BLESSINGS,
   BOSS_RUSH_BOSS_ORDER,
+  CUSTOM_ALLY_ID,
   DUNGEON_EVENTS,
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
   ENEMIES,
   getAchievementBonuses,
   getActiveSynergies,
+  getAllyDef,
   getCompendiumBonuses,
   getEffectiveDiveLoop,
   getItemEffectiveAutoPower,
@@ -24,7 +25,7 @@ import {
   STAGES,
   ULTIMATE_ITEM_IDS,
 } from '../game/data';
-import { getSpriteAuraCanvas, getSpriteCanvas } from '../game/pixelSprites';
+import { getSpriteAuraCanvas, getSpriteCanvas, syncCustomAllySprite } from '../game/pixelSprites';
 import { sound } from '../game/sound';
 import {
   CarriedSlotStatus,
@@ -97,7 +98,7 @@ interface SimUnit {
   name: string;
   spriteId: string;
   isHero: boolean;
-  role: 'HERO' | 'HEALER' | 'TANK' | 'RANGER' | 'MAGE' | 'THIEF';
+  role: 'HERO' | 'HEALER' | 'TANK' | 'RANGER' | 'MAGE' | 'THIEF' | 'ALLROUNDER';
   awakeningRank: number;
   hp: number;
   maxHp: number;
@@ -316,6 +317,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
   useEffect(() => {
     const runSave = saveRef.current;
+    const initialRetreatSignal = retreatRef.current;
     lastHandledNonceRef.current = 0;
     const stage = STAGES.find((s) => s.id === runSave.selectedStageId) ?? STAGES[0];
     const biome = stage.isBossRush ? BIOME_COLORS.BOSS_RUSH : BIOME_COLORS[stage.biome];
@@ -433,11 +435,17 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
     heroDef = Math.max(0, Math.round(heroDef * (1 + defPctMult / 100)));
     heroMaxHp = Math.round(heroMaxHp * (1 + hpPctMult / 100));
 
+    syncCustomAllySprite(runSave.customAlly);
+
     const hasThief = runSave.activeAllies.includes('thief_kaito');
     const hasCleric = runSave.activeAllies.includes('cleric_lilia');
     if (hasThief) {
       const thiefRank = runSave.allyAwakenings['thief_kaito'] ?? 0;
       goldBonusPct += 20 + thiefRank * 12;
+    }
+    if (runSave.activeAllies.includes(CUSTOM_ALLY_ID) && runSave.customAlly?.style === 'THIEF') {
+      const customRank = runSave.allyAwakenings[CUSTOM_ALLY_ID] ?? 0;
+      goldBonusPct += 10 + customRank * 5;
     }
 
     const totalDmgReduction = Math.min(
@@ -475,7 +483,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
     const heroShareRate = skillBonus.heroStatSharePct / 100;
 
     runSave.activeAllies.forEach((allyId) => {
-      const def = ALLIES.find((a) => a.id === allyId);
+      const def = getAllyDef(allyId, runSave);
       const lv = runSave.hiredAllies[allyId] ?? 0;
       if (!def || lv <= 0) return;
       const rank = runSave.allyAwakenings[allyId] ?? 0;
@@ -619,6 +627,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
     const highlights: ExpeditionHighlight[] = [];
     let highlightIdCounter = 1;
     let closeCallRecordedThisFloor = false;
+    let lastFatalAttacker = '';
+    let lastFatalDmg = 0;
     let peakHit: {
       dmg: number;
       floor: number;
@@ -1652,7 +1662,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       emitHud();
     };
 
-    const finishRun = (victory: boolean, cause: string) => {
+    const finishRun = (victory: boolean, cause: string, isManualRetreat = false) => {
       if (phase === 'FINISHED') return;
       phase = 'FINISHED';
       onEventPromptRef.current(null);
@@ -1726,11 +1736,19 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
       } else {
         if (stage.isEndless && !isPracticeRun) {
-          sound.victory();
-          pushLog(
-            `無限回廊 ${currentFloor}F に到達！獲得した財宝・踏破の証(+${crestsEarned})を持ち帰ります。`,
-            'loot'
-          );
+          if (isManualRetreat) {
+            sound.defeat();
+            pushLog(
+              `プレイヤー操作により無限回廊 ${currentFloor}F から撤退しました（財宝・踏破の証+${crestsEarned}を持ち帰り）。`,
+              'alert'
+            );
+          } else {
+            sound.victory();
+            pushLog(
+              `無限回廊 ${currentFloor}F で ${lastFatalAttacker || '強敵'} に敗れ帰還（財宝・踏破の証+${crestsEarned}を持ち帰り）。`,
+              'loot'
+            );
+          }
         } else {
           sound.defeat();
           pushLog(cause, 'alert');
@@ -1797,9 +1815,13 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           causeOfReturn: isPracticeRun
             ? victory
               ? `【仮潜入】第${effectiveLoopCount}周倍率で ${stage.name} を模擬踏破（低効率G・魔石のみ獲得）`
-              : `【仮潜入】第${effectiveLoopCount}周倍率（${currentFloor}F）から撤退（低効率G・魔石のみ持帰／消費なし）`
+              : isManualRetreat
+                ? `【仮潜入】プレイヤー操作により第${effectiveLoopCount}周倍率（${currentFloor}F）から任意撤退（低効率G・魔石のみ持帰／消費なし）`
+                : `【仮潜入】第${effectiveLoopCount}周倍率（${currentFloor}F）で${lastFatalAttacker ? `${lastFatalAttacker}に` : ''}敗北し撤退（低効率G・魔石のみ持帰／消費なし）`
             : stage.isEndless
-              ? `無限回廊 ${currentFloor}F に到達して帰還（獲得した財宝・踏破の証+${crestsEarned}をすべて持ち帰り）`
+              ? isManualRetreat
+                ? `プレイヤー操作により無限回廊 ${currentFloor}F から任意撤退（獲得した財宝・踏破の証+${crestsEarned}をすべて持ち帰り）`
+                : `無限回廊 ${currentFloor}F で ${lastFatalAttacker || '強敵'}${lastFatalDmg > 0 ? `（${lastFatalDmg}ダメージ）` : ''} に敗れ帰還（獲得した財宝・踏破の証+${crestsEarned}をすべて持ち帰り）`
               : cause,
           maxHitDamage,
           usedConsumablesCount,
@@ -1816,6 +1838,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           totalHealingDone,
           bossesDefeated,
           consumableActivations,
+          wasManualRetreat: isManualRetreat,
         });
       }, 650);
     };
@@ -1899,8 +1922,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       const rawDt = Math.min(50, now - lastTime);
       lastTime = now;
 
-      if (retreatRef.current > 0 && phase !== 'FINISHED') {
-        finishRun(false, '拠点へ帰還しました（使用アイテムは消費、獲得品は持ち帰り）');
+      if (retreatRef.current > initialRetreatSignal && phase !== 'FINISHED') {
+        finishRun(false, 'プレイヤー操作により拠点へ撤退しました（使用アイテムは消費、獲得品は持ち帰り）', true);
       }
 
       if (
@@ -2057,7 +2080,10 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                   'hero'
                 );
               } else if (!revived) {
-                finishRun(false, `${currentFloor}Fで力尽きた…戦利品を持って拠点へ帰還`);
+                finishRun(
+                  false,
+                  `${currentFloor}Fで${lastFatalAttacker ? `${lastFatalAttacker}${lastFatalDmg > 0 ? `（${lastFatalDmg}ダメージ）` : ''}に` : ''}力尽きた…戦利品を持って拠点へ帰還`
+                );
               }
             } else {
               livingParty.forEach((u) => {
@@ -2137,6 +2163,15 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                     });
                     if (healed > 0 && !isAllyOverdrive) return;
                   }
+                }
+
+                if (u.role === 'ALLROUNDER' && (u.castCount % 3 === 0 || isAllyOverdrive)) {
+                  const cheerPower = u.atk * (0.45 + u.awakeningRank * 0.12) * (isAllyOverdrive ? 1.3 : 1);
+                  livingParty.forEach((m) => {
+                    if (m.hp < m.maxHp) {
+                      healUnit(m, cheerPower, u.id);
+                    }
+                  });
                 }
 
                 const target = livingEnemies.find((e) => e.alive);
@@ -2322,7 +2357,11 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
                   if (target.hp <= 0) {
                     target.alive = false;
-                    if (!target.isHero) {
+                    if (target.isHero) {
+                      lastFatalAttacker = e.name;
+                      lastFatalDmg = dmg;
+                      pushLog(`勇者は ${e.name} の攻撃（${dmg}ダメージ）で倒れた！`, 'alert');
+                    } else {
                       pushLog(`${target.name} が倒れた！`, 'alert');
                     }
                   } else if (

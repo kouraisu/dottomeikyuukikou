@@ -13,6 +13,7 @@ import {
   computePartyPower,
   createDefaultPresets,
   CREST_EXCHANGE_OPTIONS,
+  CUSTOM_ALLY_ID,
   DUNGEON_EVENTS,
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
@@ -21,9 +22,11 @@ import {
   FORGE_RECIPES,
   getAchievementBonuses,
   getActiveSynergies,
+  getAllyDef,
   getAllyGearCost,
   getAllyTrainBulkCost,
   getAllyTrainStepCost,
+  getCustomAllyDef,
   getCompendiumBonuses,
   getCompendiumStats,
   getEffectiveDiveLoop,
@@ -127,6 +130,7 @@ interface TownViewProps {
   onToggleAutoRepeat: () => void;
   onToggleAutoRestock: () => void;
   onStartExpedition: () => void;
+  onOpenCustomAlly: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
   onDismissGuide: (tab: TownTab) => void;
@@ -206,6 +210,7 @@ export const TownView: React.FC<TownViewProps> = ({
   onToggleAutoRepeat,
   onToggleAutoRestock,
   onStartExpedition,
+  onOpenCustomAlly,
   onOpenHistory,
   onOpenSettings,
   onDismissGuide,
@@ -1269,7 +1274,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 {[...save.partyOrder].reverse().map((memberId) => {
                   const orderIdx = save.partyOrder.indexOf(memberId);
                   const isHero = memberId === 'hero';
-                  const ally = !isHero ? ALLIES.find((a) => a.id === memberId) : null;
+                  const ally = !isHero ? getAllyDef(memberId, save) : null;
                   if (!isHero && !ally) return null;
                   const label =
                     orderIdx === 0
@@ -1313,7 +1318,10 @@ export const TownView: React.FC<TownViewProps> = ({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {ALLIES.map((ally) => {
+              {[
+                ...ALLIES,
+                ...(save.customAlly?.created ? [getCustomAllyDef(save.customAlly)] : []),
+              ].map((ally) => {
                 const lv = save.hiredAllies[ally.id] ?? 0;
                 const rank = save.allyAwakenings[ally.id] ?? 0;
                 const gearLv = (save.allyGearLevels ?? {})[ally.id] ?? 0;
@@ -1359,7 +1367,11 @@ export const TownView: React.FC<TownViewProps> = ({
                   <div
                     key={ally.id}
                     className={`pixel-slot p-3.5 flex flex-col justify-between gap-3 ${
-                      isActive ? 'border-emerald-500/75 bg-[#162022]' : ''
+                      isActive
+                        ? 'border-emerald-500/75 bg-[#162022]'
+                        : ally.isCustom
+                          ? 'border-amber-500/50 bg-[#171925]'
+                          : ''
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -1368,8 +1380,15 @@ export const TownView: React.FC<TownViewProps> = ({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-sm text-slate-100">{ally.name}</span>
-                          <span className="font-num text-xs text-amber-300">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-bold text-sm text-slate-100 truncate">{ally.name}</span>
+                            {ally.isCustom && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500/20 border border-amber-400/60 text-amber-200 shrink-0">
+                                オリキャラ
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-num text-xs text-amber-300 shrink-0">
                             {lv === 0 ? '未契約' : `Lv.${lv} · ★${rank} · 武具+${gearLv}`}
                           </span>
                         </div>
@@ -1466,10 +1485,55 @@ export const TownView: React.FC<TownViewProps> = ({
                           )}
                         </div>
                       )}
+
+                      {ally.id === CUSTOM_ALLY_ID && (
+                        <button
+                          type="button"
+                          onClick={onOpenCustomAlly}
+                          className="w-full px-3 py-1.5 text-[11px] font-bold bg-[#232018] hover:bg-[#332c1e] text-amber-200 border border-amber-500/50 cursor-pointer"
+                        >
+                          見た目・名前・スタイルを編集する
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
               })}
+
+              {!save.customAlly?.created && (
+                <div className="pixel-slot p-3.5 flex flex-col justify-between gap-3 border-dashed border-2 border-amber-500/55 bg-[#141722]">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 bg-[#1b1f2b] border border-amber-500/40 flex items-center justify-center shrink-0">
+                      <PixelSprite id="ally_custom_blank" size={36} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-sm text-amber-200">
+                          まっさらな仲間（オリキャラ枠）
+                        </span>
+                        <span className="font-num text-[11px] text-emerald-300 font-bold shrink-0">
+                          作成無料
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        マイキャラ · 名前・ドット絵・役割を自由作成
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                        色やパーツの組み合わせ、または16×16の自由お絵描きであなただけのオリジナル仲間を1人作成できます（性能は控えめなのでお好み重視でOK！）。
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-[#232836]">
+                    <button
+                      type="button"
+                      onClick={onOpenCustomAlly}
+                      className="w-full py-2 px-4 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer"
+                    >
+                      オリキャラを作成する！
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -3359,7 +3423,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 <div className="space-y-1.5">
                   {save.partyOrder.map((memberId, idx) => {
                     const isHero = memberId === 'hero';
-                    const ally = !isHero ? ALLIES.find((a) => a.id === memberId) : null;
+                    const ally = !isHero ? getAllyDef(memberId, save) : null;
                     if (!isHero && !ally) return null;
                     const posLabel =
                       idx === 0

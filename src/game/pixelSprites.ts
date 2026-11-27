@@ -1,4 +1,5 @@
 // Crisp 16x16 pixel-art sprite matrices & offscreen canvas cache
+import type { CustomAllyConfig } from './types';
 
 type Palette = Record<string, string>;
 
@@ -138,6 +139,24 @@ export const SPRITES: Record<string, string[]> = {
     '....kdkkdk......',
     '...kdk..kdk.....',
     '...kkk..kkk.....',
+    '................',
+    '................',
+  ],
+  ally_custom_blank: [
+    '..kk......kk....',
+    '.kwwk....kwwk...',
+    '.kwswkkkkwswk...',
+    '.kwwwwwwwwwwk...',
+    '..kwwkwwkwwk....',
+    '..kwwwwwwwwk....',
+    '...kwwwwwwk.....',
+    '..kwwsssswwk....',
+    '.kwwswwwwswwk...',
+    '.kw.kwwwwk.wk...',
+    '....kwwwwk..k...',
+    '....kwkkwk.ksk..',
+    '...kww..wwksk...',
+    '...kkk..kkkk....',
     '................',
     '................',
   ],
@@ -1765,4 +1784,237 @@ export function getSpriteAuraCanvas(spriteId: string, color: string): HTMLCanvas
   auraCache.set(key, canvas);
   return canvas;
 }
+
+const CUSTOM_BODY_TEMPLATES: Record<CustomAllyConfig['body'], string[]> = {
+  NEKO: [
+    '................',
+    '................',
+    '..kk......kk....',
+    '.k12k....k21k...',
+    '.k11kkkkkk11k...',
+    '.k1111111111k...',
+    '.k113k11k311k...',
+    '..k11122111k....',
+    '..k11333311k....',
+    '.k11k1221k11k...',
+    '.k1.k1221k.1k...',
+    '....k1111k.kk...',
+    '....k1kk1k.k1k..',
+    '...k11..11kk1k..',
+    '...kkk..kkkkk...',
+    '................',
+  ],
+  HUMANOID: [
+    '................',
+    '................',
+    '....kkkkkk......',
+    '...k222222k.....',
+    '..k22222222k....',
+    '..kkf2222fkk....',
+    '..kffkffkffk....',
+    '...kffffffk.....',
+    '...k113311k.....',
+    '..k11111111k....',
+    '..kfk1331kfk....',
+    '....k1111k......',
+    '....k2kk2k......',
+    '...knk..knk.....',
+    '...kkk..kkk.....',
+    '................',
+  ],
+  SLIME: [
+    '................',
+    '................',
+    '................',
+    '................',
+    '.....kkkkkk.....',
+    '...kk111111kk...',
+    '..k11ww111111k..',
+    '..k11w1111111k..',
+    '.k11k311113k11k.',
+    '.k11k111111k11k.',
+    '.k111122221111k.',
+    '.k111222222111k.',
+    '..k1122222211k..',
+    '...kkkkkkkkkk...',
+    '................',
+    '................',
+  ],
+  GOLEM: [
+    '................',
+    '................',
+    '....kkkkkkkk....',
+    '...k11111111k...',
+    '...k1k33k33k1k..',
+    '...k11111111k...',
+    '..kk11111111kk..',
+    '.k111122221111k.',
+    '.k11k123321k11k.',
+    '.k11k122221k11k.',
+    '.k1.k111111k.1k.',
+    '....k11kk11k....',
+    '....k1k..k1k....',
+    '...k22k..k22k...',
+    '...kkkk..kkkk...',
+    '................',
+  ],
+};
+
+function setCharAt(grid: string[][], x: number, y: number, ch: string) {
+  if (y < 0 || y >= 16 || x < 0 || x >= 16) return;
+  grid[y][x] = ch;
+}
+
+export function renderCustomAllyColorGrid(cfg: CustomAllyConfig): string[] {
+  if (cfg.customPixels && cfg.customPixels.length === 256) {
+    return cfg.customPixels;
+  }
+
+  const base = CUSTOM_BODY_TEMPLATES[cfg.body] ?? CUSTOM_BODY_TEMPLATES.NEKO;
+  const grid: string[][] = base.map((row) => row.split(''));
+
+  // Headgear overlays
+  if (cfg.headgear === 'CAT_EARS' && cfg.body !== 'NEKO') {
+    const ears: [number, number, string][] = [
+      [2, 1, 'k'], [3, 1, 'k'], [10, 1, 'k'], [11, 1, 'k'],
+      [1, 2, 'k'], [2, 2, '1'], [3, 2, '2'], [4, 2, 'k'],
+      [9, 2, 'k'], [10, 2, '2'], [11, 2, '1'], [12, 2, 'k'],
+      [1, 3, 'k'], [2, 3, '1'], [3, 3, '2'], [10, 3, '2'], [11, 3, '1'], [12, 3, 'k'],
+    ];
+    ears.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.headgear === 'RIBBON') {
+    const ribbon: [number, number, string][] = [
+      [4, 0, 'k'], [5, 0, 'k'], [8, 0, 'k'], [9, 0, 'k'],
+      [3, 1, 'k'], [4, 1, '3'], [5, 1, '3'], [6, 1, 'k'], [7, 1, 'k'], [8, 1, '3'], [9, 1, '3'], [10, 1, 'k'],
+      [4, 2, 'k'], [5, 2, 'k'], [6, 2, '3'], [7, 2, '3'], [8, 2, 'k'], [9, 2, 'k'],
+    ];
+    ribbon.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.headgear === 'WIZARD_HAT') {
+    const hat: [number, number, string][] = [
+      [6, 0, 'k'], [7, 0, 'k'],
+      [5, 1, 'k'], [6, 1, '2'], [7, 1, '2'], [8, 1, 'k'],
+      [4, 2, 'k'], [5, 2, '2'], [6, 2, '2'], [7, 2, '2'], [8, 2, '2'], [9, 2, 'k'],
+      [2, 3, 'k'], [3, 3, '3'], [4, 3, '3'], [5, 3, '3'], [6, 3, '3'], [7, 3, '3'], [8, 3, '3'], [9, 3, '3'], [10, 3, '3'], [11, 3, 'k'],
+    ];
+    hat.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.headgear === 'CROWN') {
+    const crown: [number, number, string][] = [
+      [4, 0, 'k'], [6, 0, 'k'], [7, 0, 'k'], [9, 0, 'k'],
+      [4, 1, 'y'], [5, 1, 'k'], [6, 1, 'y'], [7, 1, 'y'], [8, 1, 'k'], [9, 1, 'y'],
+      [4, 2, 'y'], [5, 2, 'y'], [6, 2, '3'], [7, 2, '3'], [8, 2, 'y'], [9, 2, 'y'],
+      [4, 3, 'k'], [5, 3, 'k'], [6, 3, 'k'], [7, 3, 'k'], [8, 3, 'k'], [9, 3, 'k'],
+    ];
+    crown.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.headgear === 'HORNS') {
+    const horns: [number, number, string][] = [
+      [2, 0, 'k'], [11, 0, 'k'],
+      [1, 1, 'k'], [2, 1, 'y'], [3, 1, 'k'], [10, 1, 'k'], [11, 1, 'y'], [12, 1, 'k'],
+      [2, 2, 'y'], [3, 2, 'w'], [10, 2, 'w'], [11, 2, 'y'],
+    ];
+    horns.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  }
+
+  // Weapon overlays (right side)
+  if (cfg.weapon === 'SWORD') {
+    const sword: [number, number, string][] = [
+      [14, 5, 'k'],
+      [13, 6, 'k'], [14, 6, 's'], [15, 6, 'k'],
+      [13, 7, 'k'], [14, 7, 's'], [15, 7, 'k'],
+      [13, 8, 'k'], [14, 8, 's'], [15, 8, 'k'],
+      [12, 9, 'k'], [13, 9, 'y'], [14, 9, 'y'], [15, 9, 'k'],
+      [13, 10, 'k'], [14, 10, 'n'], [15, 10, 'k'],
+      [14, 11, 'k'],
+    ];
+    sword.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.weapon === 'STAFF') {
+    const staff: [number, number, string][] = [
+      [14, 5, 'k'],
+      [13, 6, 'k'], [14, 6, '3'], [15, 6, 'k'],
+      [13, 7, 'k'], [14, 7, 'w'], [15, 7, 'k'],
+      [14, 8, 'n'], [15, 8, 'k'],
+      [14, 9, 'n'],
+      [14, 10, 'n'],
+      [14, 11, 'n'],
+      [14, 12, 'n'],
+      [14, 13, 'k'],
+    ];
+    staff.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.weapon === 'BOW') {
+    const bow: [number, number, string][] = [
+      [13, 5, 'k'],
+      [14, 6, 'n'], [13, 6, 'w'],
+      [15, 7, 'n'], [13, 7, 'w'],
+      [15, 8, 'n'], [13, 8, 'w'],
+      [15, 9, 'n'], [13, 9, 'w'],
+      [14, 10, 'n'], [13, 10, 'w'],
+      [13, 11, 'k'],
+    ];
+    bow.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  } else if (cfg.weapon === 'SHIELD') {
+    const shield: [number, number, string][] = [
+      [12, 7, 'k'], [13, 7, 's'], [14, 7, 's'], [15, 7, 'k'],
+      [12, 8, 's'], [13, 8, '2'], [14, 8, '2'], [15, 8, 's'],
+      [12, 9, 's'], [13, 9, '3'], [14, 9, '3'], [15, 9, 's'],
+      [12, 10, 'k'], [13, 10, '2'], [14, 10, '2'], [15, 10, 'k'],
+      [13, 11, 'k'], [14, 11, 'k'],
+    ];
+    shield.forEach(([x, y, ch]) => setCharAt(grid, x, y, ch));
+  }
+
+  const out: string[] = new Array(256).fill('');
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const ch = grid[y][x];
+      if (ch === '.') continue;
+      if (ch === '1') out[y * 16 + x] = cfg.primaryColor;
+      else if (ch === '2') out[y * 16 + x] = cfg.secondaryColor;
+      else if (ch === '3') out[y * 16 + x] = cfg.accentColor;
+      else out[y * 16 + x] = PAL[ch] ?? '';
+    }
+  }
+  return out;
+}
+
+const customSpriteListeners = new Set<() => void>();
+let customSpriteVersion = 0;
+
+export function getCustomSpriteVersion(): number {
+  return customSpriteVersion;
+}
+
+export function subscribeCustomSprite(cb: () => void): () => void {
+  customSpriteListeners.add(cb);
+  return () => {
+    customSpriteListeners.delete(cb);
+  };
+}
+
+export function syncCustomAllySprite(cfg: CustomAllyConfig): void {
+  if (typeof document === 'undefined') return;
+  const pixels = renderCustomAllyColorGrid(cfg);
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const col = pixels[y * 16 + x];
+        if (col) {
+          ctx.fillStyle = col;
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+  }
+  spriteCache.set('ally_custom', canvas);
+  for (const key of Array.from(auraCache.keys())) {
+    if (key.startsWith('ally_custom::')) {
+      auraCache.delete(key);
+    }
+  }
+  customSpriteVersion += 1;
+  customSpriteListeners.forEach((cb) => cb());
+}
+
 
