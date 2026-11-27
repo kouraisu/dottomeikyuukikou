@@ -60,6 +60,7 @@ import {
   getTotalMeterExpandCost,
   getTypeMeterExpandCost,
   hasConvenience,
+  INITIAL_CUSTOM_ALLY,
   INITIAL_LIFETIME_STATS,
   INITIAL_SAVE_STATE,
   INITIAL_TYPE_METER_CAPS,
@@ -701,6 +702,12 @@ export default function App() {
         })),
         itemRefineLevels: {},
         seenAnnouncements: [...(prev.seenAnnouncements ?? [])],
+        customAlly: prev.customAlly
+          ? {
+              ...prev.customAlly,
+              customPixels: prev.customAlly.customPixels ? [...prev.customAlly.customPixels] : null,
+            }
+          : { ...INITIAL_CUSTOM_ALLY },
         lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
           totalReincarnations: 1,
         }),
@@ -1476,6 +1483,7 @@ export default function App() {
     (nextConfig: CustomAllyConfig) => {
       syncCustomAllySprite(nextConfig);
       setSave((prev) => {
+        if (prev.loopCount < 2) return prev;
         const firstTime = !prev.customAlly?.created;
         const prevLv = prev.hiredAllies[CUSTOM_ALLY_ID] ?? 0;
         const nextLv = Math.max(1, prevLv);
@@ -2476,6 +2484,11 @@ export default function App() {
             onToggleAutoRestock={handleToggleAutoRestock}
             onStartExpedition={handleStartExpedition}
             onOpenCustomAlly={() => {
+              if (save.loopCount < 2) {
+                sound.click();
+                showNotice('オリキャラ「まっさらちゃん」は第2周目に入ってから解放されます！');
+                return;
+              }
               sound.click();
               setCustomAllyOpen(true);
             }}
@@ -2643,7 +2656,7 @@ export default function App() {
         </div>
       )}
 
-      {customAllyOpen && (
+      {customAllyOpen && save.loopCount >= 2 && (
         <CustomAllyModal
           config={save.customAlly}
           onSave={handleSaveCustomAlly}

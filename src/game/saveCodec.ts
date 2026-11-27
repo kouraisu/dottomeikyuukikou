@@ -3,6 +3,7 @@ import {
   clampSpeedToUnlocked,
   CONVENIENCE_UPGRADE_IDS,
   createDefaultPresets,
+  CUSTOM_ALLY_ID,
   getMaxStageForLoop,
   INITIAL_CUSTOM_ALLY,
   INITIAL_LIFETIME_STATS,
@@ -71,7 +72,9 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
   const endlessUnlocked = highestClearedLoop >= 5 || loopCount >= 6;
   const maxStage = getMaxStageForLoop(loopCount, allAchUnlocked, endlessUnlocked);
   const activeAllies = Array.isArray(parsed.activeAllies)
-    ? parsed.activeAllies.filter((x): x is string => typeof x === 'string')
+    ? parsed.activeAllies.filter(
+        (x): x is string => typeof x === 'string' && (loopCount >= 2 || x !== CUSTOM_ALLY_ID)
+      )
     : [];
   const pouch =
     Array.isArray(parsed.pouch) && parsed.pouch.length === MAX_POUCH_SLOTS

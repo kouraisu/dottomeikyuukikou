@@ -1387,7 +1387,8 @@ export const TitleView: React.FC<TitleViewProps> = ({
   }, [save.customAlly]);
 
   useEffect(() => {
-    const deckTemplate = buildVignetteDeck(Boolean(save.customAlly?.created));
+    const canShowCustom = save.loopCount >= 2 && Boolean(save.customAlly?.created);
+    const deckTemplate = buildVignetteDeck(canShowCustom);
     let shuffledQueue: VignetteSpec[] = [];
     let lastId = '';
 
@@ -2098,7 +2099,7 @@ export const TitleView: React.FC<TitleViewProps> = ({
       cancelAnimationFrame(rafId);
       canvas?.removeEventListener('click', handlePointer);
     };
-  }, [save.customAlly?.created]);
+  }, [save.loopCount, save.customAlly?.created]);
 
   return (
     <div className="min-h-screen bg-[#101218] text-[#eceff4] flex flex-col items-center justify-center px-4 py-8">

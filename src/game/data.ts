@@ -4515,14 +4515,26 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
   {
     id: 'unlock_loop2',
     badge: '2周目報酬',
-    title: '図鑑の詳細解説・仮潜入・裏ステージ7＆希少イベント解放！',
+    title: '図鑑の詳細解説・仮潜入・裏ステージ7＆希少イベント・オリキャラ解放！',
     description:
-      '【2周目報酬】①図鑑の魔物・武器アイテムに背景解説ストーリーが追加 ②過去の周回倍率で低効率G・魔石稼ぎができる「仮潜入」解放 ③裏ステージ7「蒼炎の深淵窟」＆ミミック等の新イベントが出現！',
+      '【2周目報酬】①図鑑の魔物・武器アイテムに背景解説ストーリーが追加 ②過去の周回倍率で低効率G・魔石稼ぎができる「仮潜入」解放 ③裏ステージ7「蒼炎の深淵窟」＆ミミック等の新イベントが出現 ④酒場に「まっさらな仲間（オリキャラ作成）」が解放！',
     spriteId: 'item_sage_orb',
     accent: 'sky',
     targetTab: 'COMPENDIUM',
     actionLabel: '図鑑で解説を読む',
     isUnlocked: (save) => save.loopCount >= 2,
+  },
+  {
+    id: 'unlock_custom_ally',
+    badge: '2周目解放',
+    title: '酒場に「まっさらな仲間（オリキャラ枠）」が解放！',
+    description:
+      '第2周目に入ったことで、酒場にて名前・役割・色や16×16ドット絵を自由に作れる自分だけのオリジナル仲間「まっさらちゃん」を作成できるようになりました！',
+    spriteId: 'ally_custom_blank',
+    accent: 'amber',
+    targetTab: 'TAVERN',
+    actionLabel: '酒場で作成する',
+    isUnlocked: (save) => save.loopCount >= 2 && !save.customAlly?.created,
   },
   {
     id: 'unlock_loop3',
