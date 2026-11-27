@@ -1,4 +1,10 @@
-export type GameScreen = 'TOWN' | 'EXPEDITION' | 'SUMMARY';
+export type GameScreen =
+  | 'TITLE'
+  | 'STORY_OPENING'
+  | 'STORY_ENDING'
+  | 'TOWN'
+  | 'EXPEDITION'
+  | 'SUMMARY';
 
 export type TownTab =
   | 'PREP'
@@ -457,6 +463,8 @@ export interface SaveState {
   seenAnnouncements: string[]; // Feature / milestone unlock announcement IDs already acknowledged
   lifetimeStats: LifetimeStats; // Cumulative play history & economy/combat statistics
   customAlly: CustomAllyConfig; // Player-created original Tavern ally (like Massara-nyan)
+  seenStoryOpening?: boolean;
+  seenStoryEnding?: boolean;
 }
 
 export interface RunHistoryEntry {

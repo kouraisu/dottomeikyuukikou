@@ -1,6 +1,8 @@
 // 8-bit Web Audio API sound effects & dynamic scene BGM synthesizer
 
 export type BgmTrack =
+  | 'TITLE'
+  | 'PALACE'
   | 'TOWN'
   | 'DUNGEON_EARLY'
   | 'DUNGEON_DEEP'
@@ -78,6 +80,74 @@ const NOTE_FREQ: Record<string, number> = {
 
 // 32-step (2-bar or 4-bar 8th/16th patterns) chiptune compositions
 const BGM_TRACKS: Record<BgmTrack, BgmTrackData> = {
+  // Bright lively adventure overture for Title Screen (G major)
+  TITLE: {
+    stepMs: 185,
+    stepsPerLoop: 32,
+    leadType: 'square',
+    arpType: 'triangle',
+    bassType: 'triangle',
+    leadVol: 0.055,
+    arpVol: 0.042,
+    bassVol: 0.075,
+    drumVol: 0.018,
+    lead: [
+      'G5', null, 'D5', 'E5', 'G5', null, 'A5', null,
+      'B5', null, 'A5', 'G5', 'D5', null, null, null,
+      'E5', null, 'F#5', 'G5', 'A5', null, 'G5', 'F#5',
+      'G5', null, 'B5', 'A5', 'G5', null, null, null,
+    ],
+    arp: [
+      'G3', 'B3', 'D4', 'G4', 'G3', 'B3', 'D4', 'G4',
+      'E3', 'G3', 'B3', 'E4', 'D3', 'F#3', 'A3', 'D4',
+      'C3', 'E3', 'G3', 'C4', 'D3', 'F#3', 'A3', 'D4',
+      'G3', 'B3', 'D4', 'G4', 'D3', 'F#3', 'A3', 'D4',
+    ],
+    bass: [
+      'G2', null, 'D3', null, 'G2', null, 'D3', null,
+      'E2', null, 'B2', null, 'D3', null, 'A2', null,
+      'C3', null, 'G2', null, 'D3', null, 'A2', null,
+      'G2', null, 'D3', null, 'G2', null, 'D3', null,
+    ],
+    drums: [
+      'K', null, 'S', null, 'K', null, 'S', null,
+      'K', null, 'S', null, 'K', null, 'S', 'S',
+      'K', null, 'S', null, 'K', null, 'S', null,
+      'K', null, 'S', null, 'K', null, 'S', null,
+    ],
+  },
+
+  // Regal royal palace audience theme (C major)
+  PALACE: {
+    stepMs: 245,
+    stepsPerLoop: 32,
+    leadType: 'triangle',
+    arpType: 'triangle',
+    bassType: 'triangle',
+    leadVol: 0.095,
+    arpVol: 0.045,
+    bassVol: 0.075,
+    drumVol: 0,
+    lead: [
+      'C5', null, 'E5', null, 'G5', null, 'G5', 'A5',
+      'G5', null, 'E5', null, 'D5', null, null, null,
+      'F5', null, 'E5', null, 'D5', 'E5', 'F5', null,
+      'E5', null, 'D5', null, 'C5', null, null, null,
+    ],
+    arp: [
+      'C4', 'E4', 'G4', 'C5', 'C4', 'E4', 'G4', 'C5',
+      'E3', 'G3', 'C4', 'E4', 'G3', 'B3', 'D4', 'G4',
+      'F3', 'A3', 'C4', 'F4', 'G3', 'B3', 'D4', 'G4',
+      'C4', 'E4', 'G4', 'C5', 'C4', 'G3', 'E3', 'C3',
+    ],
+    bass: [
+      'C3', null, null, 'G2', 'C3', null, null, 'G2',
+      'E2', null, null, 'C3', 'G2', null, 'D3', null,
+      'F2', null, null, 'C3', 'G2', null, null, 'D3',
+      'C3', null, 'G2', null, 'C3', null, null, null,
+    ],
+  },
+
   // Warm cozy RPG town / guild hall (C major / A minor)
   TOWN: {
     stepMs: 225,
@@ -321,6 +391,8 @@ const BGM_TRACKS: Record<BgmTrack, BgmTrackData> = {
 };
 
 export const BGM_TRACK_LABELS: Record<BgmTrack, string> = {
+  TITLE: '冒険の序曲',
+  PALACE: '王宮の謁見',
   TOWN: '拠点の酒場',
   DUNGEON_EARLY: '迷宮探索',
   DUNGEON_DEEP: '深淵の回廊',

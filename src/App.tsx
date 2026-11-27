@@ -14,7 +14,9 @@ import { ExpeditionView } from './components/ExpeditionView';
 import { HistoryModal } from './components/HistoryModal';
 import { PixelSprite } from './components/PixelSprite';
 import { SettingsModal } from './components/SettingsModal';
+import { StorySceneView } from './components/StorySceneView';
 import { SummaryView } from './components/SummaryView';
+import { TitleView } from './components/TitleView';
 import { TownView } from './components/TownView';
 import {
   ACHIEVEMENTS,
@@ -115,7 +117,8 @@ function loadSaveState(): SaveState {
 
 export default function App() {
   const [save, setSave] = useState<SaveState>(loadSaveState);
-  const [screen, setScreen] = useState<GameScreen>('TOWN');
+  const [screen, setScreen] = useState<GameScreen>('TITLE');
+  const [storyReplay, setStoryReplay] = useState(false);
   const [townTab, setTownTab] = useState<TownTab>('PREP');
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -234,6 +237,9 @@ export default function App() {
   }, []);
 
   const currentBgmTrack: BgmTrack = (() => {
+    if (screen === 'TITLE') return 'TITLE';
+    if (screen === 'STORY_OPENING') return 'PALACE';
+    if (screen === 'STORY_ENDING') return 'VICTORY';
     if (screen === 'TOWN') return 'TOWN';
     if (screen === 'SUMMARY') {
       return summary?.victory || summary?.isEndless ? 'VICTORY' : 'DEFEAT';
@@ -2065,12 +2071,26 @@ export default function App() {
         finalSave = { ...finalSave, selectedStageId: candidateNextStage.id };
       }
 
+      const shouldShowDemonKingEnding =
+        result.stageId === 6 &&
+        result.victory &&
+        !result.isPracticeRun &&
+        !save.seenStoryEnding;
+      if (shouldShowDemonKingEnding) {
+        finalSave = { ...finalSave, seenStoryEnding: true };
+      }
+
       setSave(finalSave);
       setSummaryAchievements(evaluated.newlyUnlocked);
       setSummaryEndlessUnlocked(!wasEndlessUnlocked && isEndlessUnlocked(finalSave));
       setSummaryTrueEndgameUnlocked(!wasTrueEndgame && isTrueEndgameUnlocked(finalSave));
       setSummary(summaryResult);
-      setScreen('SUMMARY');
+      if (shouldShowDemonKingEnding) {
+        setStoryReplay(false);
+        setScreen('STORY_ENDING');
+      } else {
+        setScreen('SUMMARY');
+      }
     },
     [evaluateAchievements, flushPlayTime, save, showNotice]
   );
@@ -2142,10 +2162,58 @@ export default function App() {
     }
     setSave(INITIAL_SAVE_STATE);
     setSummary(null);
-    setScreen('TOWN');
+    setStoryReplay(false);
+    setScreen('TITLE');
     setTownTab('PREP');
     showNotice('すべてのセーブデータを初期化しました');
   }, [showNotice]);
+
+  const handleStartNewGameFromTitle = useCallback(() => {
+    sound.click();
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+    setSave(INITIAL_SAVE_STATE);
+    setSummary(null);
+    setStoryReplay(false);
+    setTownTab('PREP');
+    setScreen('STORY_OPENING');
+  }, []);
+
+  const handleContinueFromTitle = useCallback(() => {
+    sound.click();
+    setStoryReplay(false);
+    setTownTab('PREP');
+    if (!save.seenStoryOpening && save.totalRuns === 0 && save.highestClearedStage === 0) {
+      setScreen('STORY_OPENING');
+    } else {
+      setScreen('TOWN');
+    }
+  }, [save.seenStoryOpening, save.totalRuns, save.highestClearedStage]);
+
+  const handleFinishOpeningStory = useCallback(() => {
+    if (storyReplay) {
+      setStoryReplay(false);
+      setScreen('TITLE');
+      return;
+    }
+    setSave((prev) => ({ ...prev, seenStoryOpening: true }));
+    setTownTab('PREP');
+    setScreen('TOWN');
+    showNotice('王様から旅立ちの支度金 120G を受け取りました！');
+  }, [storyReplay, showNotice]);
+
+  const handleFinishEndingStory = useCallback(() => {
+    if (storyReplay) {
+      setStoryReplay(false);
+      setScreen('TITLE');
+      return;
+    }
+    setSave((prev) => ({ ...prev, seenStoryEnding: true }));
+    setScreen('SUMMARY');
+  }, [storyReplay]);
 
   const townNavItems: { id: TownTab; label: string }[] = [
     { id: 'PREP', label: '持ち込み' },
@@ -2164,6 +2232,50 @@ export default function App() {
   const canAutoRepeat = hasConvenience(save, 'conv_auto_repeat');
   const pendingAnnouncements: FeatureAnnouncementDef[] =
     screen === 'TOWN' && !settingsOpen ? getPendingFeatureAnnouncements(save) : [];
+
+  if (screen === 'TITLE') {
+    return (
+      <>
+        <TitleView
+          save={save}
+          muted={muted}
+          bgmMuted={bgmMuted}
+          onContinue={handleContinueFromTitle}
+          onNewGame={handleStartNewGameFromTitle}
+          onWatchOpening={() => {
+            sound.click();
+            setStoryReplay(true);
+            setScreen('STORY_OPENING');
+          }}
+          onWatchEnding={() => {
+            sound.click();
+            setStoryReplay(true);
+            setScreen('STORY_ENDING');
+          }}
+          onToggleMute={handleToggleMute}
+          onToggleBgmMute={handleToggleBgmMute}
+        />
+        {notice && (
+          <div className="fixed bottom-5 right-5 z-40 px-4 py-2.5 bg-[#1b202c] border-2 border-amber-400 text-xs text-amber-200 shadow-lg">
+            {notice}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  if (screen === 'STORY_OPENING' || screen === 'STORY_ENDING') {
+    return (
+      <StorySceneView
+        mode={screen === 'STORY_OPENING' ? 'OPENING' : 'ENDING'}
+        save={save}
+        isReplay={storyReplay}
+        onFinish={
+          screen === 'STORY_OPENING' ? handleFinishOpeningStory : handleFinishEndingStory
+        }
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#101218] text-[#eceff4]">
@@ -2377,6 +2489,11 @@ export default function App() {
               flushPlayTime();
               setSettingsOpen(true);
             }}
+            onReturnToTitle={() => {
+              sound.click();
+              flushPlayTime();
+              setScreen('TITLE');
+            }}
             onDismissGuide={handleDismissGuide}
             onReopenGuide={handleReopenGuide}
           />
@@ -2562,6 +2679,11 @@ export default function App() {
           onChangeEventMode={handleChangeEventMode}
           onImportSave={handleImportSave}
           onResetAllData={handleResetSave}
+          onReturnToTitle={() => {
+            sound.click();
+            flushPlayTime();
+            setScreen('TITLE');
+          }}
         />
       )}
 
@@ -2575,6 +2697,19 @@ export default function App() {
         <div className="max-w-[1320px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <span>ドット迷宮紀行 · 5つの持ち物と加護・仲間で挑む自動ダンジョンRPG</span>
           <div className="flex items-center gap-4">
+            {screen === 'TOWN' && (
+              <button
+                type="button"
+                onClick={() => {
+                  sound.click();
+                  flushPlayTime();
+                  setScreen('TITLE');
+                }}
+                className="hover:text-amber-300 cursor-pointer"
+              >
+                タイトル画面へ
+              </button>
+            )}
             <button
               type="button"
               onClick={handleToggleBgmMute}

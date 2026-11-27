@@ -390,6 +390,15 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
         customPixels,
       };
     })(),
+    seenStoryOpening:
+      typeof parsed.seenStoryOpening === 'boolean'
+        ? parsed.seenStoryOpening
+        : Boolean(
+            (typeof parsed.totalRuns === 'number' && parsed.totalRuns > 0) ||
+              (typeof parsed.highestClearedStage === 'number' && parsed.highestClearedStage > 0) ||
+              (typeof parsed.loopCount === 'number' && parsed.loopCount > 1)
+          ),
+    seenStoryEnding: Boolean(parsed.seenStoryEnding),
   };
 }
 

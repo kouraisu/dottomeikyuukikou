@@ -14,6 +14,7 @@ interface SettingsModalProps {
   onChangeEventMode: (mode: EventChoiceMode) => void;
   onImportSave: (imported: SaveState) => void;
   onResetAllData: () => void;
+  onReturnToTitle?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -26,6 +27,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onChangeEventMode,
   onImportSave,
   onResetAllData,
+  onReturnToTitle,
 }) => {
   const exportedText = useMemo(() => encodeSaveToText(save), [save]);
   const [copied, setCopied] = useState(false);
@@ -181,6 +183,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
           </div>
+          {onReturnToTitle && (
+            <div className="pt-2 border-t border-[#232836] flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-400">
+                タイトル画面に戻ってデモやイベント回想を見ることもできます。
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onReturnToTitle();
+                }}
+                className="px-3 py-1.5 text-xs font-medium bg-[#252a38] hover:bg-[#31384a] text-amber-200 border border-[#3a4156] cursor-pointer whitespace-nowrap shrink-0"
+              >
+                タイトル画面へ戻る
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Cookie Clicker style Text Export */}

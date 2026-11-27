@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Award, Compass, HelpCircle, History, Lock, Repeat, RotateCcw, Sparkles, Trash2, Zap } from 'lucide-react';
+import { Award, Compass, HelpCircle, History, Home, Lock, Repeat, RotateCcw, Sparkles, Trash2, Zap } from 'lucide-react';
 import dungeonDepthsImg from '../assets/images/pixel_dungeon_depths_1795345080012.jpg';
 import shrineAltarImg from '../assets/images/pixel_sanctuary_altar_1795345079265.jpg';
 import {
@@ -133,6 +133,7 @@ interface TownViewProps {
   onOpenCustomAlly: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
+  onReturnToTitle: () => void;
   onDismissGuide: (tab: TownTab) => void;
   onReopenGuide: (tab: TownTab) => void;
 }
@@ -213,6 +214,7 @@ export const TownView: React.FC<TownViewProps> = ({
   onOpenCustomAlly,
   onOpenHistory,
   onOpenSettings,
+  onReturnToTitle,
   onDismissGuide,
   onReopenGuide,
 }) => {
@@ -448,6 +450,14 @@ export const TownView: React.FC<TownViewProps> = ({
               className="px-3 py-1.5 text-xs font-medium bg-[#252a38] hover:bg-[#31384a] text-slate-200 border border-[#3a4156] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               設定・セーブ管理
+            </button>
+            <button
+              type="button"
+              onClick={onReturnToTitle}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#181c28] hover:bg-[#252a38] text-amber-200 border border-amber-500/40 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Home className="w-3.5 h-3.5 text-amber-300" />
+              <span>タイトルへ戻る</span>
             </button>
           </div>
         </section>

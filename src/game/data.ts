@@ -2738,6 +2738,8 @@ export const INITIAL_SAVE_STATE: SaveState = {
     recentRuns: [],
   },
   customAlly: { ...INITIAL_CUSTOM_ALLY },
+  seenStoryOpening: false,
+  seenStoryEnding: false,
 };
 
 export const INITIAL_LIFETIME_STATS: LifetimeStats = INITIAL_SAVE_STATE.lifetimeStats;
