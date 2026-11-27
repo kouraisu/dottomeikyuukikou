@@ -2428,7 +2428,7 @@ export function clampSpeedToUnlocked(speed: number | undefined, save: SaveState)
 }
 
 export function getHeroTrainStepCost(level: number): number {
-  return Math.round(65 * Math.pow(1.12, Math.max(0, level - 1)));
+  return Math.round(55 * Math.pow(1.12, Math.max(0, level - 1)));
 }
 
 export function getNextHeroMilestoneSteps(level: number): number {
