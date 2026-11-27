@@ -4,6 +4,7 @@ import {
   BLESSINGS,
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
+  isTrueEndgameVisible,
   ITEMS,
   MATERIAL_INFO,
   STAGES,
@@ -181,7 +182,11 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
           </div>
 
           <div className="flex items-center gap-1 bg-[#12151d] border border-[#2b3040] p-1 flex-wrap">
-            {([1, 2, 4, 8, 16, 32, 64] as const).map((s) => {
+            {(
+              (isTrueEndgameVisible(save) || maxUnlockedSpeed >= 32
+                ? [1, 2, 4, 8, 16, 32, 64]
+                : [1, 2, 4, 8, 16]) as readonly GameSpeed[]
+            ).map((s) => {
               const locked = s > maxUnlockedSpeed;
               return (
                 <button

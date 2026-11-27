@@ -2640,9 +2640,14 @@ export const CONVENIENCE_UPGRADE_IDS: ConvenienceUpgradeId[] = [
 ];
 
 export const ENDLESS_TRUE_ENDGAME_FLOOR = 100;
+export const ENDLESS_TRUE_ENDGAME_REVEAL_FLOOR = 30;
 
 export function isTrueEndgameUnlocked(save: SaveState): boolean {
   return (save.bestEndlessFloor ?? 0) >= ENDLESS_TRUE_ENDGAME_FLOOR;
+}
+
+export function isTrueEndgameVisible(save: SaveState): boolean {
+  return (save.bestEndlessFloor ?? 0) >= ENDLESS_TRUE_ENDGAME_REVEAL_FLOOR;
 }
 
 export function hasConvenience(save: SaveState, id: ConvenienceUpgradeId): boolean {
@@ -3542,7 +3547,7 @@ export interface CrestExchangeOption {
   title: string;
   description: string;
   crestCost: number;
-  rewardKind: 'IRON' | 'STONE' | 'SCROLL' | 'GOLD' | 'SP';
+  rewardKind: 'IRON' | 'STONE' | 'SCROLL' | 'GOLD';
   amount: number;
 }
 
@@ -3578,14 +3583,6 @@ export const CREST_EXCHANGE_OPTIONS: CrestExchangeOption[] = [
     crestCost: 1,
     rewardKind: 'GOLD',
     amount: 320,
-  },
-  {
-    id: 'ex_sp',
-    title: '戦技の秘伝 (+1 SP)',
-    description: '余った踏破の証3枚をスキルポイント +1 に変換します。',
-    crestCost: 3,
-    rewardKind: 'SP',
-    amount: 1,
   },
 ];
 
@@ -3767,7 +3764,13 @@ export function getCompendiumStats(save: SaveState) {
     ...DUNGEON_EVENTS.map((e) => e.id),
     ...INSTANT_EVENTS.map((e) => e.id),
   ]);
-  const validItemIds = new Set(Object.keys(ITEMS));
+  const showTrueEndgameItems = isTrueEndgameVisible(save);
+  const discoveredItemSet = new Set(save.discoveredItems ?? []);
+  const validItemIds = new Set(
+    Object.keys(ITEMS).filter(
+      (id) => !ITEMS[id]?.isForgeExclusive || showTrueEndgameItems || discoveredItemSet.has(id)
+    )
+  );
 
   const enemyCount = new Set((save.discoveredEnemies ?? []).filter((id) => validEnemyIds.has(id))).size;
   const eventCount = new Set((save.discoveredEvents ?? []).filter((id) => validEventIds.has(id))).size;

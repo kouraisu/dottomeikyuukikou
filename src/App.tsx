@@ -1153,7 +1153,6 @@ export default function App() {
         if (prev.clearCrests < opt.crestCost) return prev;
         let nextGold = prev.gold;
         const nextMats = { ...prev.materials };
-        let nextSp = prev.skillPoints;
         let detail = '';
 
         if (opt.rewardKind === 'IRON') {
@@ -1169,9 +1168,6 @@ export default function App() {
           const gained = opt.amount * Math.max(1, prev.loopCount);
           nextGold += gained;
           detail = `+${gained}G`;
-        } else if (opt.rewardKind === 'SP') {
-          nextSp += opt.amount;
-          detail = `+${opt.amount} SP`;
         }
 
         sound.heal();
@@ -1181,7 +1177,6 @@ export default function App() {
           clearCrests: prev.clearCrests - opt.crestCost,
           gold: nextGold,
           materials: nextMats,
-          skillPoints: nextSp,
           lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
             totalGoldEarned: opt.rewardKind === 'GOLD' ? opt.amount * Math.max(1, prev.loopCount) : 0,
             totalMaterialsEarned:

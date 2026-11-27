@@ -61,6 +61,7 @@ import {
   isStageUnlockedForPlay,
   isTabUnlocked,
   isTrueEndgameUnlocked,
+  isTrueEndgameVisible,
   ITEMS,
   MATERIAL_INFO,
   MAX_ITEM_REFINE,
@@ -226,6 +227,7 @@ export const TownView: React.FC<TownViewProps> = ({
   const reincarnateReady = useMemo(() => canReincarnate(save), [save]);
   const endlessUnlocked = useMemo(() => isEndlessUnlocked(save), [save]);
   const trueEndgameUnlocked = useMemo(() => isTrueEndgameUnlocked(save), [save]);
+  const trueEndgameVisible = useMemo(() => isTrueEndgameVisible(save), [save]);
   const loreUnlocked = save.loopCount >= 2 || (save.highestClearedLoop ?? 0) >= 1;
   const presets = useMemo(() => save.presets ?? createDefaultPresets(), [save.presets]);
   const activeSynergies = useMemo(() => getActiveSynergies(save), [save]);
@@ -1777,8 +1779,8 @@ export const TownView: React.FC<TownViewProps> = ({
                 })}
               </div>
 
-              {/* TRANSCENDENT SKILL TREE (Unlocked at Endless Corridor 100F+) */}
-              {(() => {
+              {/* TRANSCENDENT SKILL TREE (Hidden until Endless 30F, Unlocked at 100F+) */}
+              {trueEndgameVisible && (() => {
                 const transNodes = SKILL_TREE.filter((n) => n.branch === 'TRANSCENDENT');
                 const t1 = transNodes.filter((n) => n.tier === 1);
                 const t2 = transNodes.filter((n) => n.tier === 2);
@@ -2109,7 +2111,8 @@ export const TownView: React.FC<TownViewProps> = ({
               })}
             </div>
 
-            {/* Secret Endgame Achievements (Unlocked at Endless Corridor 100F+) */}
+            {/* Secret Endgame Achievements (Hidden until Endless 30F, Unlocked at 100F+) */}
+            {trueEndgameVisible && (
             <div
               className={`border-2 p-4 space-y-3 ${
                 trueEndgameUnlocked
@@ -2199,6 +2202,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 </>
               )}
             </div>
+            )}
           </section>
         )}
 
@@ -2523,7 +2527,12 @@ export const TownView: React.FC<TownViewProps> = ({
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {Object.values(ITEMS)
-                    .filter((it) => !compendiumOnlyMissing || !(save.discoveredItems ?? []).includes(it.id))
+                    .filter((it) => {
+                      if (it.isForgeExclusive && !trueEndgameVisible && !(save.discoveredItems ?? []).includes(it.id)) {
+                        return false;
+                      }
+                      return !compendiumOnlyMissing || !(save.discoveredItems ?? []).includes(it.id);
+                    })
                     .map((it) => {
                       const found = (save.discoveredItems ?? []).includes(it.id);
                       const isCraftOnly = FORGE_RECIPES.some((r) => r.resultItemId === it.id);
@@ -2637,7 +2646,11 @@ export const TownView: React.FC<TownViewProps> = ({
 
             {forgeSubTab === 'RECIPES' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {FORGE_RECIPES.map((rec) => {
+                {FORGE_RECIPES.filter((rec) => {
+                  const targetItem = ITEMS[rec.resultItemId];
+                  const isExclusive = Boolean(targetItem?.isForgeExclusive || rec.requiredEndlessFloor);
+                  return !isExclusive || trueEndgameVisible;
+                }).map((rec) => {
                   const item = ITEMS[rec.resultItemId];
                   if (!item) return null;
                   const stageLocked = Boolean(
@@ -3096,7 +3109,7 @@ export const TownView: React.FC<TownViewProps> = ({
             {forgeSubTab === 'EXCHANGE' && (
               <div className="space-y-3">
                 <div className="bg-[#12151d] border border-[#2b3040] px-3.5 py-2.5 text-xs text-slate-300 leading-relaxed">
-                  余った「踏破の証」を、希少な素材や周回数に応じたゴールド・SPへ交換できます。
+                  余った「踏破の証」を、希少な素材や周回数に応じたゴールドへ交換できます。
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {CREST_EXCHANGE_OPTIONS.map((opt) => {
@@ -3104,13 +3117,11 @@ export const TownView: React.FC<TownViewProps> = ({
                     const rewardPreview =
                       opt.rewardKind === 'GOLD'
                         ? `+${(opt.amount * Math.max(1, save.loopCount)).toLocaleString()}G`
-                        : opt.rewardKind === 'SP'
-                          ? `+${opt.amount} SP`
-                          : opt.rewardKind === 'IRON'
-                            ? `鉄鉱石 +${opt.amount}`
-                            : opt.rewardKind === 'STONE'
-                              ? `魔石 +${opt.amount}`
-                              : `古文書 +${opt.amount}`;
+                        : opt.rewardKind === 'IRON'
+                          ? `鉄鉱石 +${opt.amount}`
+                          : opt.rewardKind === 'STONE'
+                            ? `魔石 +${opt.amount}`
+                            : `古文書 +${opt.amount}`;
 
                     return (
                       <div
@@ -3753,7 +3764,12 @@ export const TownView: React.FC<TownViewProps> = ({
                     無限深淵チャレンジ（第{ENDLESS_BENCHMARK_LOOP}周目基準 · 固定倍率 {endlessStatMult}x · 最高記録: {save.bestEndlessFloor ?? 0}F）
                   </div>
                   <div className="text-[11px] text-slate-300 leading-relaxed">
-                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から超絶低確率で鍛冶限定パーツ3種（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。<span className="text-amber-300 font-bold">100F突破で「裏実績」「鍛冶屋限定装備」「深淵超越スキルツリー（32x/64x）」が解放！</span>
+                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から超絶低確率で{trueEndgameVisible ? '鍛冶限定パーツ3種' : '希少な深淵素材3種'}（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。
+                    {trueEndgameVisible && (
+                      <span className="text-amber-300 font-bold">
+                        100F突破で「裏実績」「鍛冶屋限定装備」「深淵超越スキルツリー（32x/64x）」が解放！
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : effectiveDive.isPractice ? (
