@@ -1,6 +1,13 @@
 import React from 'react';
 import { Lock, Repeat } from 'lucide-react';
-import { BLESSINGS, ENDLESS_BENCHMARK_LOOP, ITEMS, STAGES } from '../game/data';
+import {
+  BLESSINGS,
+  ENDLESS_BENCHMARK_LOOP,
+  ENDLESS_RARE_PART_IDS,
+  ITEMS,
+  MATERIAL_INFO,
+  STAGES,
+} from '../game/data';
 import {
   CombatLogEntry,
   DungeonEventDef,
@@ -132,6 +139,15 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
               鉄 {hud?.materialsEarned.iron_ore ?? 0} · 魔石{' '}
               {hud?.materialsEarned.magic_stone ?? 0} · 書{' '}
               {hud?.materialsEarned.ancient_scroll ?? 0}
+              {ENDLESS_RARE_PART_IDS.map((pId) => {
+                const cnt = hud?.materialsEarned[pId] ?? 0;
+                if (cnt <= 0) return null;
+                return (
+                  <span key={pId} className="ml-2 text-purple-300 font-bold">
+                    · {MATERIAL_INFO[pId].name} {cnt}
+                  </span>
+                );
+              })}
             </span>
           </div>
 
@@ -164,8 +180,8 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
             })}
           </div>
 
-          <div className="flex items-center gap-1 bg-[#12151d] border border-[#2b3040] p-1">
-            {([1, 2, 4, 8, 16] as const).map((s) => {
+          <div className="flex items-center gap-1 bg-[#12151d] border border-[#2b3040] p-1 flex-wrap">
+            {([1, 2, 4, 8, 16, 32, 64] as const).map((s) => {
               const locked = s > maxUnlockedSpeed;
               return (
                 <button
@@ -178,7 +194,11 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
                           ? 'スキルツリーで「探索倍速 I（2x·4x）」を解放すると使用できます（1SP）'
                           : s === 8
                             ? 'スキルツリーで「探索倍速 II（8x）」を解放すると使用できます（1SP）'
-                            : 'スキルツリーで「探索倍速 III（16x）」を解放すると使用できます（1SP）'
+                            : s === 16
+                              ? 'スキルツリーで「探索倍速 III（16x）」を解放すると使用できます（1SP）'
+                              : s === 32
+                                ? '無限回廊100F突破後に解放される超越スキル「極限加速・32倍速」で使用可能（10SP）'
+                                : '無限回廊100F突破後に解放される超越スキル「神速領域・64倍速」で使用可能（20SP）'
                       );
                       return;
                     }

@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Lock, Sparkles } from 'lucide-react';
 import {
   EventChoiceSelection,
   ExpeditionHudSnapshot,
 } from './components/DungeonCanvas';
 import { ExpeditionView } from './components/ExpeditionView';
+import { HistoryModal } from './components/HistoryModal';
 import { PixelSprite } from './components/PixelSprite';
 import { SettingsModal } from './components/SettingsModal';
 import { SummaryView } from './components/SummaryView';
@@ -17,6 +18,7 @@ import { TownView } from './components/TownView';
 import {
   ACHIEVEMENTS,
   ALL_ACHIEVEMENT_IDS,
+  ALL_SECRET_ACHIEVEMENT_IDS,
   ALLIES,
   areAllAchievementsUnlocked,
   AUTO_EQUIP_STYLE_META,
@@ -24,11 +26,13 @@ import {
   buildAutoEquipPouch,
   canReincarnate,
   clampSpeedToUnlocked,
+  CONVENIENCE_UPGRADE_IDS,
   createDefaultPresets,
   CREST_EXCHANGE_OPTIONS,
   FEATURE_UNLOCKS,
   FeatureAnnouncementDef,
   FeatureUnlockDef,
+  FORGE_EXCLUSIVE_ITEM_IDS,
   FORGE_RECIPES,
   getAllyGearCost,
   getAllyTrainBulkCost,
@@ -40,6 +44,7 @@ import {
   getHeroTrainStepCost,
   getItemMeterCost,
   getItemRefineCost,
+  getItemRefineRangeCost,
   getItemSalvageReward,
   getMaxTotalMeterCeiling,
   getMaxTypeMeterCeiling,
@@ -51,17 +56,20 @@ import {
   getTotalMeterExpandCost,
   getTypeMeterExpandCost,
   hasConvenience,
+  INITIAL_LIFETIME_STATS,
   INITIAL_SAVE_STATE,
   INITIAL_TYPE_METER_CAPS,
   isEndlessUnlocked,
   isItemUnlockedInShop,
   isStageUnlockedForPlay,
   isTabUnlocked,
+  isTrueEndgameUnlocked,
   ITEMS,
   MAX_ITEM_REFINE,
   MAX_POUCH_SLOTS,
   MAX_PRESET_SLOTS,
   refillConsumedPouchSlots,
+  SECRET_ACHIEVEMENTS,
   SKILL_TREE,
   STAGES,
 } from './game/data';
@@ -83,6 +91,8 @@ import {
   GameScreen,
   GameSpeed,
   ItemCategory,
+  LifetimeStats,
+  RunHistoryEntry,
   SaveState,
   TownTab,
 } from './game/types';
@@ -107,6 +117,7 @@ export default function App() {
   const [muted, setMuted] = useState(false);
   const [bgmMuted, setBgmMuted] = useState(() => sound.bgmMuted);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [retreatSignal, setRetreatSignal] = useState(0);
   const [hud, setHud] = useState<ExpeditionHudSnapshot | null>(null);
   const [logs, setLogs] = useState<CombatLogEntry[]>([]);
@@ -116,8 +127,78 @@ export default function App() {
   const [summaryUnlocked, setSummaryUnlocked] = useState<FeatureUnlockDef[]>([]);
   const [summaryAchievements, setSummaryAchievements] = useState<AchievementDef[]>([]);
   const [summaryEndlessUnlocked, setSummaryEndlessUnlocked] = useState(false);
+  const [summaryTrueEndgameUnlocked, setSummaryTrueEndgameUnlocked] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [expeditionRunId, setExpeditionRunId] = useState(0);
+  const lastPlayTickRef = useRef<number>(Date.now());
+
+  const addLifetimeDelta = (
+    prevStats: LifetimeStats | undefined,
+    delta: Partial<Omit<LifetimeStats, 'recentRuns'>>,
+    newRun?: RunHistoryEntry
+  ): LifetimeStats => {
+    const base = prevStats ?? INITIAL_LIFETIME_STATS;
+    return {
+      playTimeSeconds: base.playTimeSeconds + (delta.playTimeSeconds ?? 0),
+      totalGoldEarned: base.totalGoldEarned + (delta.totalGoldEarned ?? 0),
+      totalGoldSpent: base.totalGoldSpent + (delta.totalGoldSpent ?? 0),
+      totalUpgrades: base.totalUpgrades + (delta.totalUpgrades ?? 0),
+      totalItemsUsed: base.totalItemsUsed + (delta.totalItemsUsed ?? 0),
+      totalConsumableActivations:
+        base.totalConsumableActivations + (delta.totalConsumableActivations ?? 0),
+      totalItemsBought: base.totalItemsBought + (delta.totalItemsBought ?? 0),
+      totalItemsCrafted: base.totalItemsCrafted + (delta.totalItemsCrafted ?? 0),
+      totalItemsRefined: base.totalItemsRefined + (delta.totalItemsRefined ?? 0),
+      totalItemsSalvaged: base.totalItemsSalvaged + (delta.totalItemsSalvaged ?? 0),
+      totalHeroLevelsGained: base.totalHeroLevelsGained + (delta.totalHeroLevelsGained ?? 0),
+      totalAllyLevelsGained: base.totalAllyLevelsGained + (delta.totalAllyLevelsGained ?? 0),
+      totalEnemiesDefeated: base.totalEnemiesDefeated + (delta.totalEnemiesDefeated ?? 0),
+      totalBossesDefeated: base.totalBossesDefeated + (delta.totalBossesDefeated ?? 0),
+      totalDamageDealt: base.totalDamageDealt + (delta.totalDamageDealt ?? 0),
+      totalHealingDone: base.totalHealingDone + (delta.totalHealingDone ?? 0),
+      totalCrestsEarned: base.totalCrestsEarned + (delta.totalCrestsEarned ?? 0),
+      totalMaterialsEarned: base.totalMaterialsEarned + (delta.totalMaterialsEarned ?? 0),
+      totalReincarnations: base.totalReincarnations + (delta.totalReincarnations ?? 0),
+      recentRuns: newRun ? [newRun, ...(base.recentRuns ?? [])].slice(0, 20) : base.recentRuns ?? [],
+    };
+  };
+
+  const flushPlayTime = useCallback(() => {
+    const now = Date.now();
+    const elapsedSec = Math.floor((now - lastPlayTickRef.current) / 1000);
+    if (elapsedSec <= 0) return;
+    lastPlayTickRef.current += elapsedSec * 1000;
+    const capped = Math.min(elapsedSec, 120);
+    setSave((prev) => ({
+      ...prev,
+      lifetimeStats: addLifetimeDelta(prev.lifetimeStats, { playTimeSeconds: capped }),
+    }));
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        flushPlayTime();
+      } else {
+        lastPlayTickRef.current = Date.now();
+      }
+    }, 15000);
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPlayTime();
+      } else {
+        lastPlayTickRef.current = Date.now();
+      }
+    };
+    const onUnload = () => flushPlayTime();
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('beforeunload', onUnload);
+    };
+  }, [flushPlayTime]);
 
   useEffect(() => {
     try {
@@ -400,6 +481,10 @@ export default function App() {
           magic_stone: prev.materials.magic_stone - cost.magicStone,
         },
         totalMeterCap: prev.totalMeterCap + 1,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldSpent: cost.gold,
+          totalUpgrades: 1,
+        }),
       };
     });
   }, [showNotice]);
@@ -432,6 +517,10 @@ export default function App() {
             ...prev.typeMeterCaps,
             [category]: current + 1,
           },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost.gold,
+            totalUpgrades: 1,
+          }),
         };
       });
     },
@@ -497,7 +586,30 @@ export default function App() {
         }
       });
 
-      const unlockedList = ALL_ACHIEVEMENT_IDS.filter((id) => currentSet.has(id));
+      if (isTrueEndgameUnlocked(nextSave)) {
+        const secretChecks: Record<string, boolean> = {
+          sach_endless_100: (nextSave.bestEndlessFloor ?? 0) >= 100,
+          sach_endless_150: (nextSave.bestEndlessFloor ?? 0) >= 150,
+          sach_endless_200: (nextSave.bestEndlessFloor ?? 0) >= 200,
+          sach_god_slayer: (nextSave.bestSingleHit ?? 0) >= 10000,
+          sach_forge_mythic: FORGE_EXCLUSIVE_ITEM_IDS.some(
+            (id) => (nextSave.discoveredItems ?? []).includes(id) || (nextSave.inventory[id] ?? 0) > 0
+          ),
+          sach_transcendent_master: SKILL_TREE.some(
+            (n) => n.branch === 'TRANSCENDENT' && (nextSave.unlockedSkills ?? []).includes(n.id)
+          ),
+        };
+        SECRET_ACHIEVEMENTS.forEach((ach) => {
+          if (!currentSet.has(ach.id) && secretChecks[ach.id]) {
+            currentSet.add(ach.id);
+            newlyUnlocked.push(ach);
+          }
+        });
+      }
+
+      const unlockedList = [...ALL_ACHIEVEMENT_IDS, ...ALL_SECRET_ACHIEVEMENT_IDS].filter((id) =>
+        currentSet.has(id)
+      );
       let evaluatedSave: SaveState = {
         ...nextSave,
         unlockedAchievements: unlockedList,
@@ -566,6 +678,9 @@ export default function App() {
         })),
         itemRefineLevels: {},
         seenAnnouncements: [...(prev.seenAnnouncements ?? [])],
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalReincarnations: 1,
+        }),
       };
       const evaluated = evaluateAchievements(baseNext);
       sound.victory();
@@ -580,6 +695,7 @@ export default function App() {
     setSummaryUnlocked([]);
     setSummaryAchievements([]);
     setSummaryEndlessUnlocked(false);
+    setSummaryTrueEndgameUnlocked(false);
     setScreen('TOWN');
     setTownTab('PREP');
   }, [evaluateAchievements, showNotice]);
@@ -608,6 +724,10 @@ export default function App() {
             [itemId]: bought + 1,
           },
           discoveredItems: mergeUnique(prev.discoveredItems, [itemId]),
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: item.price,
+            totalItemsBought: 1,
+          }),
         };
         const evaluated = evaluateAchievements(nextSave);
         if (evaluated.masterJustUnlocked) {
@@ -638,6 +758,10 @@ export default function App() {
           ...prev.inventory,
           [itemId]: owned - 1,
         },
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldEarned: item.sellPrice,
+          totalItemsSalvaged: 1,
+        }),
       };
     });
   }, []);
@@ -670,6 +794,10 @@ export default function App() {
         ...prev,
         gold: prev.gold + earnedGold,
         inventory: nextInv,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldEarned: earnedGold,
+          totalItemsSalvaged: soldCount,
+        }),
       };
     });
   }, [showNotice]);
@@ -717,6 +845,10 @@ export default function App() {
         inventory: nextInv,
         shopBoughtThisCycle: nextBought,
         discoveredItems: mergeUnique(prev.discoveredItems, newlyBoughtIds),
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldSpent: totalSpent,
+          totalItemsBought: totalBought,
+        }),
       };
       const evaluated = evaluateAchievements(nextSave);
       showNotice(`ショップ商品 ${totalBought}個をまとめて購入しました (-${totalSpent}G)`);
@@ -732,15 +864,48 @@ export default function App() {
       if (!item) return;
 
       setSave((prev) => {
+        if (rec.requiredStageCleared && prev.highestClearedStage < rec.requiredStageCleared) {
+          return prev;
+        }
+        if (rec.requiredEndlessFloor && (prev.bestEndlessFloor ?? 0) < rec.requiredEndlessFloor) {
+          return prev;
+        }
         if (prev.gold < rec.goldCost) return prev;
         if (
           prev.materials.iron_ore < (rec.materials.iron_ore ?? 0) ||
           prev.materials.magic_stone < (rec.materials.magic_stone ?? 0) ||
-          prev.materials.ancient_scroll < (rec.materials.ancient_scroll ?? 0)
+          prev.materials.ancient_scroll < (rec.materials.ancient_scroll ?? 0) ||
+          (prev.materials.abyss_shard ?? 0) < (rec.materials.abyss_shard ?? 0) ||
+          (prev.materials.void_gear ?? 0) < (rec.materials.void_gear ?? 0) ||
+          (prev.materials.chaos_prism ?? 0) < (rec.materials.chaos_prism ?? 0)
+        ) {
+          return prev;
+        }
+        if (
+          rec.requiredItems?.some(
+            (req) => (prev.inventory[req.itemId] ?? 0) < req.count
+          )
         ) {
           return prev;
         }
         sound.buy();
+        const nextInv: Record<string, number> = { ...prev.inventory };
+        rec.requiredItems?.forEach((req) => {
+          nextInv[req.itemId] = Math.max(0, (nextInv[req.itemId] ?? 0) - req.count);
+        });
+        nextInv[item.id] = (nextInv[item.id] ?? 0) + 1;
+
+        // Reconcile pouch if a consumed base equipment was equipped
+        const remainingToAssign: Record<string, number> = { ...nextInv };
+        const nextPouch = prev.pouch.map((pId) => {
+          if (!pId) return null;
+          if ((remainingToAssign[pId] ?? 0) > 0) {
+            remainingToAssign[pId] -= 1;
+            return pId;
+          }
+          return null;
+        });
+
         const nextSave: SaveState = {
           ...prev,
           gold: prev.gold - rec.goldCost,
@@ -749,12 +914,17 @@ export default function App() {
             magic_stone: prev.materials.magic_stone - (rec.materials.magic_stone ?? 0),
             ancient_scroll:
               prev.materials.ancient_scroll - (rec.materials.ancient_scroll ?? 0),
+            abyss_shard: (prev.materials.abyss_shard ?? 0) - (rec.materials.abyss_shard ?? 0),
+            void_gear: (prev.materials.void_gear ?? 0) - (rec.materials.void_gear ?? 0),
+            chaos_prism: (prev.materials.chaos_prism ?? 0) - (rec.materials.chaos_prism ?? 0),
           },
-          inventory: {
-            ...prev.inventory,
-            [item.id]: (prev.inventory[item.id] ?? 0) + 1,
-          },
+          inventory: nextInv,
+          pouch: nextPouch,
           discoveredItems: mergeUnique(prev.discoveredItems, [item.id]),
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: rec.goldCost,
+            totalItemsCrafted: 1,
+          }),
         };
         const evaluated = evaluateAchievements(nextSave);
         if (evaluated.masterJustUnlocked) {
@@ -771,15 +941,17 @@ export default function App() {
   );
 
   const handleRefineItem = useCallback(
-    (itemId: string) => {
+    (itemId: string, toMax = false) => {
       const item = ITEMS[itemId];
       if (!item) return;
       setSave((prev) => {
         const owned = prev.inventory[itemId] ?? 0;
         const lv = (prev.itemRefineLevels ?? {})[itemId] ?? 0;
         if (owned <= 0 || lv >= MAX_ITEM_REFINE) return prev;
-        const cost = getItemRefineCost(itemId, lv);
+        const targetLv = toMax ? MAX_ITEM_REFINE : lv + 1;
+        const cost = getItemRefineRangeCost(itemId, lv, targetLv);
         if (
+          cost.steps <= 0 ||
           prev.gold < cost.gold ||
           prev.materials.iron_ore < cost.iron ||
           prev.materials.magic_stone < cost.stone ||
@@ -788,24 +960,102 @@ export default function App() {
           return prev;
         }
         sound.heal();
-        showNotice(`${item.name} を +${lv + 1} に精錬しました！（効果 +${(lv + 1) * 15}%）`);
+        showNotice(
+          cost.steps > 1
+            ? `${item.name} を +${lv}→+${targetLv} まで一括精錬しました！（効果 +${targetLv * 15}%）`
+            : `${item.name} を +${targetLv} に精錬しました！（効果 +${targetLv * 15}%）`
+        );
         return {
           ...prev,
           gold: prev.gold - cost.gold,
           materials: {
+            ...prev.materials,
             iron_ore: prev.materials.iron_ore - cost.iron,
             magic_stone: prev.materials.magic_stone - cost.stone,
             ancient_scroll: prev.materials.ancient_scroll - cost.scroll,
           },
           itemRefineLevels: {
             ...(prev.itemRefineLevels ?? {}),
-            [itemId]: lv + 1,
+            [itemId]: targetLv,
           },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost.gold,
+            totalUpgrades: cost.steps,
+            totalItemsRefined: cost.steps,
+          }),
         };
       });
     },
     [showNotice]
   );
+
+  const handleBulkRefinePouch = useCallback(() => {
+    setSave((prev) => {
+      const equippedIds = Array.from(
+        new Set(prev.pouch.filter((id): id is string => Boolean(id && ITEMS[id])))
+      );
+      if (equippedIds.length === 0) return prev;
+
+      let remGold = prev.gold;
+      let remIron = prev.materials.iron_ore;
+      let remStone = prev.materials.magic_stone;
+      let remScroll = prev.materials.ancient_scroll;
+      const nextRefine = { ...(prev.itemRefineLevels ?? {}) };
+      let totalSteps = 0;
+      let totalGoldSpent = 0;
+      const upgradedItemIds = new Set<string>();
+
+      for (const id of equippedIds) {
+        let curLv = nextRefine[id] ?? 0;
+        while (curLv < MAX_ITEM_REFINE) {
+          const stepCost = getItemRefineCost(id, curLv);
+          if (
+            remGold < stepCost.gold ||
+            remIron < stepCost.iron ||
+            remStone < stepCost.stone ||
+            remScroll < stepCost.scroll
+          ) {
+            break;
+          }
+          remGold -= stepCost.gold;
+          remIron -= stepCost.iron;
+          remStone -= stepCost.stone;
+          remScroll -= stepCost.scroll;
+          curLv += 1;
+          nextRefine[id] = curLv;
+          totalSteps += 1;
+          totalGoldSpent += stepCost.gold;
+          upgradedItemIds.add(id);
+        }
+      }
+
+      if (totalSteps === 0) {
+        showNotice('持ち込み装備をさらに精錬するためのゴールドまたは素材が不足しています');
+        return prev;
+      }
+
+      sound.heal();
+      showNotice(
+        `持ち込み装備 ${upgradedItemIds.size}種をまとめて精錬しました（計+${totalSteps}段階 / -${totalGoldSpent.toLocaleString()}G）`
+      );
+      return {
+        ...prev,
+        gold: remGold,
+        materials: {
+          ...prev.materials,
+          iron_ore: remIron,
+          magic_stone: remStone,
+          ancient_scroll: remScroll,
+        },
+        itemRefineLevels: nextRefine,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldSpent,
+          totalUpgrades: totalSteps,
+          totalItemsRefined: totalSteps,
+        }),
+      };
+    });
+  }, [showNotice]);
 
   const handleSalvageItem = useCallback(
     (itemId: string) => {
@@ -824,6 +1074,7 @@ export default function App() {
           ...prev,
           gold: prev.gold + reward.gold,
           materials: {
+            ...prev.materials,
             iron_ore: prev.materials.iron_ore + reward.materials.iron_ore,
             magic_stone: prev.materials.magic_stone + reward.materials.magic_stone,
             ancient_scroll: prev.materials.ancient_scroll + reward.materials.ancient_scroll,
@@ -832,6 +1083,14 @@ export default function App() {
             ...prev.inventory,
             [itemId]: owned - 1,
           },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldEarned: reward.gold,
+            totalItemsSalvaged: 1,
+            totalMaterialsEarned:
+              reward.materials.iron_ore +
+              reward.materials.magic_stone +
+              reward.materials.ancient_scroll,
+          }),
         };
       });
     },
@@ -871,11 +1130,17 @@ export default function App() {
         ...prev,
         gold: prev.gold + gold,
         materials: {
+          ...prev.materials,
           iron_ore: prev.materials.iron_ore + iron,
           magic_stone: prev.materials.magic_stone + stone,
           ancient_scroll: prev.materials.ancient_scroll + scroll,
         },
         inventory: nextInv,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldEarned: gold,
+          totalItemsSalvaged: totalCount,
+          totalMaterialsEarned: iron + stone + scroll,
+        }),
       };
     });
   }, [showNotice]);
@@ -917,6 +1182,13 @@ export default function App() {
           gold: nextGold,
           materials: nextMats,
           skillPoints: nextSp,
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldEarned: opt.rewardKind === 'GOLD' ? opt.amount * Math.max(1, prev.loopCount) : 0,
+            totalMaterialsEarned:
+              opt.rewardKind === 'IRON' || opt.rewardKind === 'STONE' || opt.rewardKind === 'SCROLL'
+                ? opt.amount
+                : 0,
+          }),
         };
       });
     },
@@ -952,6 +1224,10 @@ export default function App() {
             [blessingId]: lv + 1,
           },
           activeBlessings: nextActive,
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: goldCost,
+            totalUpgrades: 1,
+          }),
         };
       });
     },
@@ -993,6 +1269,10 @@ export default function App() {
           magic_stone: prev.materials.magic_stone - 3,
         },
         maxBlessingSlots: 3,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldSpent: 240,
+          totalUpgrades: 1,
+        }),
       };
     });
   }, [showNotice]);
@@ -1025,6 +1305,11 @@ export default function App() {
           },
           activeAllies: nextActive,
           partyOrder: reconcilePartyOrder(prev.partyOrder, nextActive),
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost,
+            totalUpgrades: 1,
+            totalAllyLevelsGained: 1,
+          }),
         };
       });
     },
@@ -1053,6 +1338,11 @@ export default function App() {
             ...prev.hiredAllies,
             [allyId]: lv + 5,
           },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost,
+            totalUpgrades: 5,
+            totalAllyLevelsGained: 5,
+          }),
         };
       });
     },
@@ -1084,6 +1374,7 @@ export default function App() {
           ...prev,
           gold: prev.gold - awGold,
           materials: {
+            ...prev.materials,
             iron_ore: prev.materials.iron_ore - awIron,
             magic_stone: prev.materials.magic_stone - awStone,
             ancient_scroll: prev.materials.ancient_scroll - awScroll,
@@ -1092,6 +1383,10 @@ export default function App() {
             ...prev.allyAwakenings,
             [allyId]: rank + 1,
           },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: awGold,
+            totalUpgrades: 1,
+          }),
         };
         const evaluated = evaluateAchievements(nextSave);
         if (evaluated.masterJustUnlocked) {
@@ -1129,6 +1424,7 @@ export default function App() {
           ...prev,
           gold: prev.gold - cost.gold,
           materials: {
+            ...prev.materials,
             iron_ore: prev.materials.iron_ore - cost.iron,
             magic_stone: prev.materials.magic_stone - cost.stone,
             ancient_scroll: prev.materials.ancient_scroll - cost.scroll,
@@ -1137,6 +1433,10 @@ export default function App() {
             ...(prev.allyGearLevels ?? {}),
             [allyId]: gearLv + 1,
           },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost.gold,
+            totalUpgrades: 1,
+          }),
         };
         const evaluated = evaluateAchievements(nextSave);
         if (evaluated.masterJustUnlocked) {
@@ -1216,6 +1516,11 @@ export default function App() {
         gold: prev.gold - cost,
         heroUpgradeLevel: nextLv,
         skillPoints: prev.skillPoints + gainedSp,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldSpent: cost,
+          totalUpgrades: 1,
+          totalHeroLevelsGained: 1,
+        }),
       };
     });
   }, [showNotice]);
@@ -1240,6 +1545,11 @@ export default function App() {
         gold: prev.gold - cost,
         heroUpgradeLevel: nextLv,
         skillPoints: prev.skillPoints + gainedSp,
+        lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+          totalGoldSpent: cost,
+          totalUpgrades: steps,
+          totalHeroLevelsGained: steps,
+        }),
       };
     });
   }, [showNotice]);
@@ -1249,7 +1559,12 @@ export default function App() {
       const node = SKILL_TREE.find((n) => n.id === skillId);
       if (!node) return;
       setSave((prev) => {
-        const isConv = node.branch === 'CONVENIENCE';
+        if (node.branch === 'TRANSCENDENT' && !isTrueEndgameUnlocked(prev)) {
+          return prev;
+        }
+        const isConv =
+          node.branch === 'CONVENIENCE' ||
+          CONVENIENCE_UPGRADE_IDS.includes(skillId as ConvenienceUpgradeId);
         const unlocked = prev.unlockedSkills ?? [];
         const convList = prev.unlockedConveniences ?? [];
         if (unlocked.includes(skillId) || (isConv && convList.includes(skillId as ConvenienceUpgradeId))) {
@@ -1270,10 +1585,11 @@ export default function App() {
         let nextPreferredSpeed = prev.preferredSpeed ?? 1;
         if (skillId === 'conv_speed_4x' && nextPreferredSpeed < 2) nextPreferredSpeed = 2;
         if (skillId === 'conv_speed_8x' && nextPreferredSpeed < 8) nextPreferredSpeed = 8;
-        if (skillId === 'conv_speed_16x') nextPreferredSpeed = 16;
+        if (skillId === 'conv_speed_16x' && nextPreferredSpeed < 16) nextPreferredSpeed = 16;
+        if (skillId === 'conv_speed_32x' && nextPreferredSpeed < 32) nextPreferredSpeed = 32;
+        if (skillId === 'conv_speed_64x') nextPreferredSpeed = 64;
 
-        showNotice(`スキル「${node.name}」を習得しました！`);
-        return {
+        const nextSave: SaveState = {
           ...prev,
           skillPoints: prev.skillPoints - node.costSp,
           unlockedSkills: mergeUnique(unlocked, [skillId]),
@@ -1281,25 +1597,44 @@ export default function App() {
             ? (mergeUnique(convList, [skillId]) as ConvenienceUpgradeId[])
             : convList,
           preferredSpeed: nextPreferredSpeed,
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, { totalUpgrades: 1 }),
+        };
+        const evaluated = evaluateAchievements(nextSave);
+        if (evaluated.newlyUnlocked.length > 0) {
+          showNotice(
+            `スキル「${node.name}」習得 · 裏実績「${evaluated.newlyUnlocked[0].title}」解除！`
+          );
+        } else {
+          showNotice(`スキル「${node.name}」を習得しました！`);
+        }
+        return evaluated.save;
+      });
+    },
+    [evaluateAchievements, showNotice]
+  );
+
+  const handleUpgradeSpMastery = useCallback(
+    (steps = 1) => {
+      setSave((prev) => {
+        if (prev.skillPoints < 1) return prev;
+        const actualSteps = Math.min(Math.max(1, Math.floor(steps)), prev.skillPoints);
+        const nextLv = (prev.spMasteryLevel ?? 0) + actualSteps;
+        sound.heal();
+        showNotice(
+          `SP極限鍛錬が +${actualSteps} → Lv.${nextLv} に上昇！（累計: 勇者攻防HP+${nextLv * 8}% · 仲間+${nextLv * 6}% · 獲得G+${nextLv * 6}%）`
+        );
+        return {
+          ...prev,
+          skillPoints: prev.skillPoints - actualSteps,
+          spMasteryLevel: nextLv,
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalUpgrades: actualSteps,
+          }),
         };
       });
     },
     [showNotice]
   );
-
-  const handleUpgradeSpMastery = useCallback(() => {
-    setSave((prev) => {
-      if (prev.skillPoints < 1) return prev;
-      const nextLv = (prev.spMasteryLevel ?? 0) + 1;
-      sound.heal();
-      showNotice(`SP極限鍛錬が Lv.${nextLv} に上昇！（勇者攻防HP +12% · 仲間 +8% · 獲得G +8%）`);
-      return {
-        ...prev,
-        skillPoints: prev.skillPoints - 1,
-        spMasteryLevel: nextLv,
-      };
-    });
-  }, [showNotice]);
 
   const handleResetSkills = useCallback(() => {
     setSave((prev) => {
@@ -1463,7 +1798,37 @@ export default function App() {
 
   const handleExpeditionComplete = useCallback(
     (result: ExpeditionResult) => {
+      flushPlayTime();
       setPendingEvent(null);
+      const matsTotal =
+        (result.materialsEarned.iron_ore ?? 0) +
+        (result.materialsEarned.magic_stone ?? 0) +
+        (result.materialsEarned.ancient_scroll ?? 0) +
+        (result.materialsEarned.abyss_shard ?? 0) +
+        (result.materialsEarned.void_gear ?? 0) +
+        (result.materialsEarned.chaos_prism ?? 0);
+      const consumableActs = result.consumableActivations ?? result.usedConsumablesCount ?? 0;
+      const nonConsumableUsed = result.consumedItems.filter(
+        (id) => ITEMS[id]?.category !== 'CONSUMABLE'
+      ).length;
+      const runHistoryEntry: RunHistoryEntry = {
+        id: Date.now() + Math.floor(Math.random() * 1000),
+        timestamp: Date.now(),
+        stageId: result.stageId,
+        stageName: result.stageName,
+        loopCount: result.effectiveLoopCount ?? result.loopCount,
+        victory: result.victory,
+        isEndless: result.isEndless,
+        isBossRush: result.isBossRush,
+        isPracticeRun: result.isPracticeRun,
+        reachedFloor: result.reachedFloor,
+        totalFloors: result.totalFloors,
+        goldEarned: result.goldEarned,
+        enemiesDefeated: result.enemiesDefeated,
+        maxHitDamage: result.maxHitDamage ?? 0,
+        durationSec: result.durationSec,
+      };
+
       if (result.isPracticeRun) {
         setSave((prev) => ({
           ...prev,
@@ -1472,16 +1837,32 @@ export default function App() {
             ...prev.materials,
             magic_stone: prev.materials.magic_stone + (result.materialsEarned.magic_stone ?? 0),
           },
+          lifetimeStats: addLifetimeDelta(
+            prev.lifetimeStats,
+            {
+              totalGoldEarned: result.goldEarned,
+              totalEnemiesDefeated: result.enemiesDefeated,
+              totalBossesDefeated: result.bossesDefeated ?? 0,
+              totalDamageDealt: result.totalDamageDealt ?? 0,
+              totalHealingDone: result.totalHealingDone ?? 0,
+              totalMaterialsEarned: matsTotal,
+              totalItemsUsed: consumableActs,
+              totalConsumableActivations: consumableActs,
+            },
+            runHistoryEntry
+          ),
         }));
         setSummaryUnlocked([]);
         setSummaryAchievements([]);
         setSummaryEndlessUnlocked(false);
+        setSummaryTrueEndgameUnlocked(false);
         setSummary(result);
         setScreen('SUMMARY');
         return;
       }
 
       const wasEndlessUnlocked = isEndlessUnlocked(save);
+      const wasTrueEndgame = isTrueEndgameUnlocked(save);
       const prevCleared = save.highestClearedStage;
       const isBossRushRun = Boolean(result.isBossRush || result.stageId === 10);
       const isEndlessRun = Boolean(result.isEndless || result.stageId === 11);
@@ -1540,6 +1921,12 @@ export default function App() {
           magic_stone: save.materials.magic_stone + result.materialsEarned.magic_stone,
           ancient_scroll:
             save.materials.ancient_scroll + result.materialsEarned.ancient_scroll,
+          abyss_shard:
+            (save.materials.abyss_shard ?? 0) + (result.materialsEarned.abyss_shard ?? 0),
+          void_gear:
+            (save.materials.void_gear ?? 0) + (result.materialsEarned.void_gear ?? 0),
+          chaos_prism:
+            (save.materials.chaos_prism ?? 0) + (result.materialsEarned.chaos_prism ?? 0),
         },
         inventory: nextInv,
         pouch: reconciledPouch,
@@ -1560,6 +1947,21 @@ export default function App() {
         discoveredEnemies: mergeUnique(save.discoveredEnemies, result.encounteredEnemyIds),
         discoveredEvents: mergeUnique(save.discoveredEvents, result.encounteredEventIds),
         discoveredItems: mergeUnique(save.discoveredItems, result.lootedItems),
+        lifetimeStats: addLifetimeDelta(
+          save.lifetimeStats,
+          {
+            totalGoldEarned: result.goldEarned,
+            totalEnemiesDefeated: result.enemiesDefeated,
+            totalBossesDefeated: result.bossesDefeated ?? 0,
+            totalDamageDealt: result.totalDamageDealt ?? 0,
+            totalHealingDone: result.totalHealingDone ?? 0,
+            totalCrestsEarned: result.crestsEarned,
+            totalMaterialsEarned: matsTotal,
+            totalItemsUsed: consumableActs + nonConsumableUsed,
+            totalConsumableActivations: consumableActs,
+          },
+          runHistoryEntry
+        ),
       };
 
       const baseUpdatedSave: SaveState = {
@@ -1582,6 +1984,10 @@ export default function App() {
           inventory: restock.nextInventory,
           shopBoughtThisCycle: restock.nextShopBought,
           discoveredItems: mergeUnique(finalSave.discoveredItems, restock.boughtItemIds),
+          lifetimeStats: addLifetimeDelta(finalSave.lifetimeStats, {
+            totalGoldSpent: restock.goldSpent,
+            totalItemsBought: restock.boughtItemIds.length,
+          }),
         };
         if (restock.boughtItemIds.length > 0) {
           summaryResult = {
@@ -1612,10 +2018,11 @@ export default function App() {
       setSave(finalSave);
       setSummaryAchievements(evaluated.newlyUnlocked);
       setSummaryEndlessUnlocked(!wasEndlessUnlocked && isEndlessUnlocked(finalSave));
+      setSummaryTrueEndgameUnlocked(!wasTrueEndgame && isTrueEndgameUnlocked(finalSave));
       setSummary(summaryResult);
       setScreen('SUMMARY');
     },
-    [evaluateAchievements, save, showNotice]
+    [evaluateAchievements, flushPlayTime, save, showNotice]
   );
 
   const handleDismissGuide = useCallback((tab: TownTab) => {
@@ -1846,6 +2253,7 @@ export default function App() {
             onSellItem={handleSellItem}
             onCraftRecipe={handleCraftRecipe}
             onRefineItem={handleRefineItem}
+            onBulkRefinePouch={handleBulkRefinePouch}
             onSalvageItem={handleSalvageItem}
             onBulkSalvageSurplus={handleBulkSalvageSurplus}
             onExchangeCrest={handleExchangeCrest}
@@ -1869,8 +2277,14 @@ export default function App() {
             onToggleAutoRepeat={handleToggleAutoRepeat}
             onToggleAutoRestock={handleToggleAutoRestock}
             onStartExpedition={handleStartExpedition}
+            onOpenHistory={() => {
+              sound.click();
+              flushPlayTime();
+              setHistoryOpen(true);
+            }}
             onOpenSettings={() => {
               sound.click();
+              flushPlayTime();
               setSettingsOpen(true);
             }}
             onDismissGuide={handleDismissGuide}
@@ -1922,6 +2336,7 @@ export default function App() {
             newlyUnlockedAchievements={summaryAchievements}
             allAchievementsCompleted={areAllAchievementsUnlocked(save)}
             endlessJustUnlocked={summaryEndlessUnlocked}
+            trueEndgameJustUnlocked={summaryTrueEndgameUnlocked}
             canReincarnate={canReincarnate(save)}
             canAutoRepeat={canAutoRepeat}
             autoRepeatEnabled={Boolean(save.autoRepeatEnabled)}
@@ -2019,6 +2434,17 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {historyOpen && (
+        <HistoryModal
+          save={save}
+          onClose={() => {
+            sound.click();
+            flushPlayTime();
+            setHistoryOpen(false);
+          }}
+        />
       )}
 
       {settingsOpen && (

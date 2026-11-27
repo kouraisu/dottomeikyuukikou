@@ -4,6 +4,7 @@ import {
   CONVENIENCE_UPGRADE_IDS,
   createDefaultPresets,
   getMaxStageForLoop,
+  INITIAL_LIFETIME_STATS,
   INITIAL_SAVE_STATE,
   INITIAL_TOTAL_METER_CAP,
   INITIAL_TYPE_METER_CAPS,
@@ -12,7 +13,13 @@ import {
   MAX_POUCH_SLOTS,
   MAX_PRESET_SLOTS,
 } from './data';
-import { ConvenienceUpgradeId, LoadoutPreset, SaveState } from './types';
+import {
+  ConvenienceUpgradeId,
+  LifetimeStats,
+  LoadoutPreset,
+  RunHistoryEntry,
+  SaveState,
+} from './types';
 
 export function mergeUnique(
   base: string[] | undefined,
@@ -162,8 +169,30 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
         ? Math.floor(parsed.gold)
         : INITIAL_SAVE_STATE.gold,
     materials: {
-      ...INITIAL_SAVE_STATE.materials,
-      ...(parsed.materials ?? {}),
+      iron_ore:
+        typeof parsed.materials?.iron_ore === 'number' && Number.isFinite(parsed.materials.iron_ore)
+          ? Math.max(0, Math.floor(parsed.materials.iron_ore))
+          : INITIAL_SAVE_STATE.materials.iron_ore,
+      magic_stone:
+        typeof parsed.materials?.magic_stone === 'number' && Number.isFinite(parsed.materials.magic_stone)
+          ? Math.max(0, Math.floor(parsed.materials.magic_stone))
+          : INITIAL_SAVE_STATE.materials.magic_stone,
+      ancient_scroll:
+        typeof parsed.materials?.ancient_scroll === 'number' && Number.isFinite(parsed.materials.ancient_scroll)
+          ? Math.max(0, Math.floor(parsed.materials.ancient_scroll))
+          : INITIAL_SAVE_STATE.materials.ancient_scroll,
+      abyss_shard:
+        typeof parsed.materials?.abyss_shard === 'number' && Number.isFinite(parsed.materials.abyss_shard)
+          ? Math.max(0, Math.floor(parsed.materials.abyss_shard))
+          : 0,
+      void_gear:
+        typeof parsed.materials?.void_gear === 'number' && Number.isFinite(parsed.materials.void_gear)
+          ? Math.max(0, Math.floor(parsed.materials.void_gear))
+          : 0,
+      chaos_prism:
+        typeof parsed.materials?.chaos_prism === 'number' && Number.isFinite(parsed.materials.chaos_prism)
+          ? Math.max(0, Math.floor(parsed.materials.chaos_prism))
+          : 0,
     },
     inventory: inv,
     totalMeterCap:
@@ -262,6 +291,57 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     presets,
     itemRefineLevels,
     seenAnnouncements,
+    lifetimeStats: (() => {
+      const raw = (parsed.lifetimeStats ?? {}) as Partial<LifetimeStats>;
+      const num = (v: unknown) =>
+        typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
+      const recentRuns: RunHistoryEntry[] = Array.isArray(raw.recentRuns)
+        ? raw.recentRuns
+            .filter((r): r is RunHistoryEntry => Boolean(r && typeof r === 'object'))
+            .slice(0, 20)
+            .map((r, idx) => ({
+              id: typeof r.id === 'number' && Number.isFinite(r.id) ? r.id : idx + 1,
+              timestamp:
+                typeof r.timestamp === 'number' && Number.isFinite(r.timestamp) ? r.timestamp : 0,
+              stageId: num(r.stageId) || 1,
+              stageName: typeof r.stageName === 'string' ? r.stageName.slice(0, 40) : '迷宮',
+              loopCount: Math.max(1, num(r.loopCount)),
+              victory: Boolean(r.victory),
+              isEndless: Boolean(r.isEndless),
+              isBossRush: Boolean(r.isBossRush),
+              isPracticeRun: Boolean(r.isPracticeRun),
+              reachedFloor: Math.max(1, num(r.reachedFloor)),
+              totalFloors: Math.max(1, num(r.totalFloors)),
+              goldEarned: num(r.goldEarned),
+              enemiesDefeated: num(r.enemiesDefeated),
+              maxHitDamage: num(r.maxHitDamage),
+              durationSec: Math.max(1, num(r.durationSec)),
+            }))
+        : [];
+      return {
+        ...INITIAL_LIFETIME_STATS,
+        playTimeSeconds: num(raw.playTimeSeconds),
+        totalGoldEarned: num(raw.totalGoldEarned),
+        totalGoldSpent: num(raw.totalGoldSpent),
+        totalUpgrades: num(raw.totalUpgrades),
+        totalItemsUsed: num(raw.totalItemsUsed),
+        totalConsumableActivations: num(raw.totalConsumableActivations),
+        totalItemsBought: num(raw.totalItemsBought),
+        totalItemsCrafted: num(raw.totalItemsCrafted),
+        totalItemsRefined: num(raw.totalItemsRefined),
+        totalItemsSalvaged: num(raw.totalItemsSalvaged),
+        totalHeroLevelsGained: num(raw.totalHeroLevelsGained),
+        totalAllyLevelsGained: num(raw.totalAllyLevelsGained),
+        totalEnemiesDefeated: num(raw.totalEnemiesDefeated),
+        totalBossesDefeated: num(raw.totalBossesDefeated),
+        totalDamageDealt: num(raw.totalDamageDealt),
+        totalHealingDone: num(raw.totalHealingDone),
+        totalCrestsEarned: num(raw.totalCrestsEarned),
+        totalMaterialsEarned: num(raw.totalMaterialsEarned),
+        totalReincarnations: num(raw.totalReincarnations),
+        recentRuns,
+      };
+    })(),
   };
 }
 

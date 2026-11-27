@@ -16,12 +16,14 @@ export type EventChoiceMode = 'AUTO' | 'MANUAL';
 
 export type AutoEquipPlaystyle = 'OFFENSE' | 'DEFENSE' | 'CONSUMABLES';
 
-export type GameSpeed = 1 | 2 | 4 | 8 | 16;
+export type GameSpeed = 1 | 2 | 4 | 8 | 16 | 32 | 64;
 
 export type ConvenienceUpgradeId =
   | 'conv_speed_4x'
   | 'conv_speed_8x'
   | 'conv_speed_16x'
+  | 'conv_speed_32x'
+  | 'conv_speed_64x'
   | 'conv_auto_event'
   | 'conv_auto_equip'
   | 'conv_auto_repeat'
@@ -35,12 +37,21 @@ export interface ConvenienceUpgradeDef {
   description: string;
 }
 
-export type MaterialId = 'iron_ore' | 'magic_stone' | 'ancient_scroll';
+export type MaterialId =
+  | 'iron_ore'
+  | 'magic_stone'
+  | 'ancient_scroll'
+  | 'abyss_shard'
+  | 'void_gear'
+  | 'chaos_prism';
 
 export interface MaterialBag {
   iron_ore: number;
   magic_stone: number;
   ancient_scroll: number;
+  abyss_shard: number;
+  void_gear: number;
+  chaos_prism: number;
 }
 
 export interface ItemStats {
@@ -81,6 +92,7 @@ export interface ItemDef {
   autoEffect?: AutoEffect;
   shopUnlockClears?: number; // Number of clears needed for shop appearance
   isUltimate?: boolean; // Exclusive reward for Boss Rush / Secret Dungeon
+  isForgeExclusive?: boolean; // Exclusive endgame craft unlocked at Endless 100F
 }
 
 export interface ForgeRecipe {
@@ -88,7 +100,9 @@ export interface ForgeRecipe {
   resultItemId: string;
   goldCost: number;
   materials: Partial<MaterialBag>;
+  requiredItems?: { itemId: string; count: number }[];
   requiredStageCleared?: number;
+  requiredEndlessFloor?: number;
 }
 
 export interface BlessingDef {
@@ -193,7 +207,13 @@ export interface StageDef {
   isEndless?: boolean; // Unlocked upon clearing Loop 5
 }
 
-export type SkillTreeBranch = 'WARRIOR' | 'GUARDIAN' | 'EXPLORER' | 'ALLY' | 'CONVENIENCE';
+export type SkillTreeBranch =
+  | 'WARRIOR'
+  | 'GUARDIAN'
+  | 'EXPLORER'
+  | 'ALLY'
+  | 'CONVENIENCE'
+  | 'TRANSCENDENT';
 
 export interface SkillNodeEffects {
   atkPct?: number;
@@ -415,6 +435,48 @@ export interface SaveState {
   presets: LoadoutPreset[]; // Loop 3+ loadout presets (4 slots)
   itemRefineLevels: Record<string, number>; // Forge +0..+5 item refinement levels in current loop
   seenAnnouncements: string[]; // Feature / milestone unlock announcement IDs already acknowledged
+  lifetimeStats: LifetimeStats; // Cumulative play history & economy/combat statistics
+}
+
+export interface RunHistoryEntry {
+  id: number;
+  timestamp: number;
+  stageId: number;
+  stageName: string;
+  loopCount: number;
+  victory: boolean;
+  isEndless?: boolean;
+  isBossRush?: boolean;
+  isPracticeRun?: boolean;
+  reachedFloor: number;
+  totalFloors: number;
+  goldEarned: number;
+  enemiesDefeated: number;
+  maxHitDamage: number;
+  durationSec: number;
+}
+
+export interface LifetimeStats {
+  playTimeSeconds: number;
+  totalGoldEarned: number;
+  totalGoldSpent: number;
+  totalUpgrades: number;
+  totalItemsUsed: number;
+  totalConsumableActivations: number;
+  totalItemsBought: number;
+  totalItemsCrafted: number;
+  totalItemsRefined: number;
+  totalItemsSalvaged: number;
+  totalHeroLevelsGained: number;
+  totalAllyLevelsGained: number;
+  totalEnemiesDefeated: number;
+  totalBossesDefeated: number;
+  totalDamageDealt: number;
+  totalHealingDone: number;
+  totalCrestsEarned: number;
+  totalMaterialsEarned: number;
+  totalReincarnations: number;
+  recentRuns: RunHistoryEntry[];
 }
 
 export type HighlightKind =
@@ -467,6 +529,9 @@ export interface ExpeditionResult {
   autoPurchasedGold?: number;
   partyContributions?: PartyContribution[];
   totalDamageDealt?: number;
+  totalHealingDone?: number;
+  bossesDefeated?: number;
+  consumableActivations?: number;
 }
 
 export interface CombatLogEntry {

@@ -14,6 +14,7 @@ import {
   ItemCategory,
   ItemDef,
   ItemStats,
+  LifetimeStats,
   LoadoutPreset,
   MaterialBag,
   SaveState,
@@ -47,7 +48,13 @@ export const MATERIAL_INFO = {
   iron_ore: { name: '鉄鉱石', color: '#94a3b8', spriteId: 'mat_iron' },
   magic_stone: { name: '魔石', color: '#38bdf8', spriteId: 'mat_stone' },
   ancient_scroll: { name: '古文書', color: '#f59e0b', spriteId: 'mat_scroll' },
+  abyss_shard: { name: '深淵の欠片', color: '#c084fc', spriteId: 'mat_abyss_shard' },
+  void_gear: { name: '虚無の歯車', color: '#38bdf8', spriteId: 'mat_void_gear' },
+  chaos_prism: { name: '混沌の星晶', color: '#f472b6', spriteId: 'mat_chaos_prism' },
 } as const;
+
+export const BASE_MATERIAL_IDS = ['iron_ore', 'magic_stone', 'ancient_scroll'] as const;
+export const ENDLESS_RARE_PART_IDS = ['abyss_shard', 'void_gear', 'chaos_prism'] as const;
 
 export const ITEMS: Record<string, ItemDef> = {
   // === WEAPONS ===
@@ -561,7 +568,7 @@ export const ITEMS: Record<string, ItemDef> = {
     shopUnlockClears: 4,
   },
 
-  // === ULTIMATE ENDGAME ITEMS (Boss Rush guaranteed 1 each / Secret Dungeon 5% random) ===
+  // === ULTIMATE ENDGAME ITEMS (Ultra-rare: Boss Rush 2% / Secret Dungeon 0.5% / Endless 15F+ Boss 0.8%) ===
   god_blade_genesis: {
     id: 'god_blade_genesis',
     name: '創世の神剣ジェネシス',
@@ -570,7 +577,7 @@ export const ITEMS: Record<string, ItemDef> = {
     price: 1200,
     sellPrice: 400,
     spriteId: 'item_god_blade',
-    description: '強化ボスラッシュ踏破（確定）や裏ダンジョン踏破（5%）で入手できる最強の神剣。圧倒的な火力と吸血・連撃性能を誇る。',
+    description: '強化ボスラッシュ踏破（2%）や裏ダンジョン踏破（0.5%）・無限回廊15F以降ボス（0.8%）で極低確率入手できる最強の神剣。圧倒的な火力と吸血・連撃性能を誇る。',
     lore: '世界創世の閃光が具現化したとされる究極の神剣。ただ一振りするだけで星辰を裂き、斬った相手の生命すら吸収して主を無敵に近づける。',
     tags: ['ULTIMATE', 'HOLY'],
     stats: { atk: 95, crit: 30, spd: 30, lifesteal: 15 },
@@ -584,7 +591,7 @@ export const ITEMS: Record<string, ItemDef> = {
     price: 1200,
     sellPrice: 400,
     spriteId: 'item_god_aegis',
-    description: '強化ボスラッシュ踏破（確定）や裏ダンジョン踏破（5%）で入手できる最強の聖鎧。鉄壁の守りと毎部屋の自動再生、反射を併せ持つ。',
+    description: '強化ボスラッシュ踏破（2%）や裏ダンジョン踏破（0.5%）・無限回廊15F以降ボス（0.8%）で極低確率入手できる最強の聖鎧。鉄壁の守りと毎部屋の自動再生、反射を併せ持つ。',
     lore: '天界の主神が自ら纏ったと伝えられる絶対守護の神鎧。あらゆる災厄を弾き返すと同時に傷を再生し、挑戦者を不沈の城塞に変える。',
     tags: ['ULTIMATE', 'HOLY'],
     stats: { def: 45, maxHp: 280, regenPerRoom: 45, thorns: 40 },
@@ -598,7 +605,7 @@ export const ITEMS: Record<string, ItemDef> = {
     price: 1200,
     sellPrice: 400,
     spriteId: 'item_infinity_crown',
-    description: '強化ボスラッシュ踏破（確定）や裏ダンジョン踏破（5%）で入手できる究極の秘宝。全能力と財宝獲得効率を極限まで引き上げる。',
+    description: '強化ボスラッシュ踏破（2%）や裏ダンジョン踏破（0.5%）・無限回廊15F以降ボス（0.8%）で極低確率入手できる究極の秘宝。全能力と財宝獲得効率を極限まで引き上げる。',
     lore: '輪廻の理を超越した覇王の証。戴く者の全能力を限界以上に解き放ち、迷宮に眠るあらゆる富と知識を惹きつける奇跡の宝冠。',
     tags: ['ULTIMATE'],
     stats: { atk: 42, def: 24, maxHp: 180, spd: 20, crit: 18, goldBonus: 60, dropBonus: 50 },
@@ -612,7 +619,7 @@ export const ITEMS: Record<string, ItemDef> = {
     price: 800,
     sellPrice: 300,
     spriteId: 'item_ambrosia',
-    description: '強化ボスラッシュ踏破（確定）や裏ダンジョン踏破（5%）で入手できる究極の霊薬。勇者・仲間の危機に3回まで全体超回復＆攻撃+35%。',
+    description: '強化ボスラッシュ踏破（2%）や裏ダンジョン踏破（0.5%）・無限回廊15F以降ボス（0.8%）で極低確率入手できる究極の霊薬。勇者・仲間の危機に3回まで全体超回復＆攻撃+35%。',
     lore: '神々の宴でのみ供される不老不死の霊酒。一滴口に含めば瀕死の部隊すら瞬時に全盛期以上の闘志を取り戻す。',
     tags: ['ULTIMATE'],
     autoEffect: {
@@ -626,6 +633,76 @@ export const ITEMS: Record<string, ItemDef> = {
     },
     isUltimate: true,
   },
+
+  // === TRUE ENDGAME FORGE-EXCLUSIVE ITEMS (Unlocked at Endless 100F+) ===
+  void_breaker_eternity: {
+    id: 'void_breaker_eternity',
+    name: '虚無断つ神槍エタニティ',
+    category: 'WEAPON',
+    rarity: 'EPIC',
+    price: 3600,
+    sellPrice: 1200,
+    spriteId: 'item_void_lance',
+    description: '無限回廊100F突破で鍛造解禁。神剣すら凌ぐ究極の一撃と超高速連撃・吸血を兼備する鍛冶屋限定の超越神槍。',
+    lore: '無限回廊の百層を越えた鍛冶神が、虚無の結晶と古の竜鉄を打って仕上げた至高の神槍。空間そのものを穿ち、敵の生命力を根こそぎ奪い取る。',
+    tags: ['ULTIMATE', 'STORM', 'DARK'],
+    stats: { atk: 145, crit: 38, spd: 42, lifesteal: 18 },
+    isUltimate: true,
+    isForgeExclusive: true,
+  },
+  astral_barrier_omega: {
+    id: 'astral_barrier_omega',
+    name: '星界の神盾鎧オメガ',
+    category: 'ARMOR',
+    rarity: 'EPIC',
+    price: 3600,
+    sellPrice: 1200,
+    spriteId: 'item_omega_armor',
+    description: '無限回廊100F突破で鍛造解禁。星辰の絶対結界により凄まじい生命・防御・毎階自動再生・反射をもたらす究極防具。',
+    lore: '終焉領域の星光を集約し鍛造された星界の鎧。纏う者の周囲に幾重もの星盾を展開し、受けた攻撃を倍以上の輝きで跳ね返す。',
+    tags: ['ULTIMATE', 'HOLY'],
+    stats: { def: 72, maxHp: 460, regenPerRoom: 85, thorns: 60 },
+    isUltimate: true,
+    isForgeExclusive: true,
+  },
+  abyssal_core_paradox: {
+    id: 'abyssal_core_paradox',
+    name: '深淵の魔核パラドクス',
+    category: 'RELIC',
+    rarity: 'EPIC',
+    price: 4000,
+    sellPrice: 1400,
+    spriteId: 'item_abyss_core',
+    description: '無限回廊100F突破で鍛造解禁。あらゆる戦闘能力と財宝獲得倍率を極限まで底上げする、鍛冶屋限定の終極魔道具。',
+    lore: '無限深淵の底で脈動していた矛盾の魔核を秘法で封じた宝珠。破壊と再生、強欲と祝福の相反する力が一つの核で共鳴している。',
+    tags: ['ULTIMATE', 'DARK', 'FLAME'],
+    stats: { atk: 70, def: 38, maxHp: 300, spd: 28, crit: 24, lifesteal: 8, goldBonus: 90, dropBonus: 80 },
+    isUltimate: true,
+    isForgeExclusive: true,
+  },
+  philosopher_nectar: {
+    id: 'philosopher_nectar',
+    name: '賢者の不老神酒ネクタール',
+    category: 'CONSUMABLE',
+    rarity: 'EPIC',
+    price: 2600,
+    sellPrice: 900,
+    spriteId: 'item_nectar',
+    description: '無限回廊100F突破で鍛造解禁。勇者・仲間の危機に4回まで全体+920回復＆攻撃+45%をもたらす至高の神酒。',
+    lore: '太古の賢者が不滅の霊薬をさらに昇華させた究極の一滴。ひとたび香気が広がれば、深淵の死線すら跳ね返す不屈の活力が湧き上がる。',
+    tags: ['ULTIMATE', 'HOLY'],
+    autoEffect: {
+      trigger: 'LOW_HP',
+      kind: 'HEAL_AND_BUFF',
+      power: 920,
+      uses: 4,
+      reactToAllies: true,
+      thresholdPct: 62,
+      description: '勇者・仲間HP62%以下で全体+920回復＆攻撃+45%（4回）',
+    },
+    isUltimate: true,
+    isForgeExclusive: true,
+  },
 };
 
 export const ULTIMATE_ITEM_IDS = [
@@ -633,6 +710,13 @@ export const ULTIMATE_ITEM_IDS = [
   'celestial_aegis',
   'infinity_crown',
   'panacea_ambrosia',
+] as const;
+
+export const FORGE_EXCLUSIVE_ITEM_IDS = [
+  'void_breaker_eternity',
+  'astral_barrier_omega',
+  'abyssal_core_paradox',
+  'philosopher_nectar',
 ] as const;
 
 export function getShopMaxStock(item: ItemDef, totalClears: number): number {
@@ -763,10 +847,10 @@ export function getStageDropProfile(
         BOSS: { common: 0, rare: 65, epic: 35 },
       },
       summaryLabel: isBossRush && floor === undefined
-        ? '階層連動（終盤EPIC高確率）＋クリアで最強装備4種確定'
+        ? '階層連動（終盤EPIC高確率）＋踏破2%で最強装備抽選'
         : '上位RARE主力 · ボス35%でEPIC',
       summaryDetail: isBossRush && floor === undefined
-        ? '1〜3階はRARE/EPIC、中盤以降は最上位EPICが高確率で出現。さらに踏破で最強装備4種を確定で1つずつ獲得！'
+        ? '1〜3階はRARE/EPIC、中盤以降は最上位EPICが高確率で出現。さらに踏破時2%の超低確率で最強装備4種のいずれか1つが出現（確定なし）！'
         : '中〜上位RAREが主力となり、ボス討伐では35%の確率でTier3 EPICがドロップします。',
     };
   }
@@ -975,6 +1059,65 @@ export const FORGE_RECIPES: ForgeRecipe[] = [
     goldCost: 230,
     materials: { magic_stone: 8, ancient_scroll: 4 },
     requiredStageCleared: 2,
+  },
+  {
+    id: 'forge_void_breaker',
+    resultItemId: 'void_breaker_eternity',
+    goldCost: 25000,
+    materials: {
+      iron_ore: 30,
+      magic_stone: 25,
+      ancient_scroll: 15,
+      abyss_shard: 1,
+      void_gear: 1,
+      chaos_prism: 1,
+    },
+    requiredItems: [{ itemId: 'god_blade_genesis', count: 1 }],
+    requiredEndlessFloor: 100,
+  },
+  {
+    id: 'forge_astral_barrier',
+    resultItemId: 'astral_barrier_omega',
+    goldCost: 25000,
+    materials: {
+      iron_ore: 32,
+      magic_stone: 25,
+      ancient_scroll: 15,
+      abyss_shard: 1,
+      void_gear: 1,
+      chaos_prism: 1,
+    },
+    requiredItems: [{ itemId: 'celestial_aegis', count: 1 }],
+    requiredEndlessFloor: 100,
+  },
+  {
+    id: 'forge_abyssal_core',
+    resultItemId: 'abyssal_core_paradox',
+    goldCost: 28000,
+    materials: {
+      iron_ore: 20,
+      magic_stone: 35,
+      ancient_scroll: 20,
+      abyss_shard: 1,
+      void_gear: 1,
+      chaos_prism: 1,
+    },
+    requiredItems: [{ itemId: 'infinity_crown', count: 1 }],
+    requiredEndlessFloor: 100,
+  },
+  {
+    id: 'forge_philosopher_nectar',
+    resultItemId: 'philosopher_nectar',
+    goldCost: 18000,
+    materials: {
+      magic_stone: 25,
+      ancient_scroll: 20,
+      abyss_shard: 1,
+      void_gear: 1,
+      chaos_prism: 1,
+    },
+    requiredItems: [{ itemId: 'panacea_ambrosia', count: 1 }],
+    requiredEndlessFloor: 100,
   },
 ];
 
@@ -1737,9 +1880,9 @@ export const STAGES: StageDef[] = [
     gimmick: {
       id: 'ENDLESS_ABYSS',
       name: '無限深淵の法則',
-      shortEffect: '第6周目基準固定 · 毎階敵強化 · 5F毎ボス&証',
+      shortEffect: '第6周目基準固定 · 毎階敵強化 · 5F毎ボス&証 · 超絶レアパーツ',
       description:
-        '周回倍率に関わらず常に「第6周目基準（21.67倍）」の固定強さで始まり、階層が進むほどさらに強大化するチャレンジ迷宮。5階ごとにボスが登場して撃破で「踏破の証」と希少ドロップを獲得（15F以降5F毎ボスで最強装備8%枠）。撤退しても獲得品はすべて持ち帰れます。',
+        '周回倍率に関わらず常に「第6周目基準（21.67倍）」の固定強さで始まり、階層が進むほどさらに強大化するチャレンジ迷宮。5階ごとにボスが登場して撃破で「踏破の証」と希少ドロップを獲得（15F以降5F毎ボスで最強装備0.8%枠）。また全敵・ボスから超絶低確率で鍛冶屋限定装備に必要な3種のパーツ（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします。',
     },
     minLoop: 1,
     isSecret: true,
@@ -2026,6 +2169,86 @@ export const SKILL_TREE: SkillNodeDef[] = [
     description: '帰還時に消費した持ち込み枠をショップから自動購入（お金と在庫が十分な場合）＆倉庫補充し、同じステージへ自動再出撃する「連続周回」を解放します。',
     effects: {},
   },
+
+  // === TRANSCENDENT BRANCH (Unlocked after Endless Corridor 100F+) ===
+  {
+    id: 'conv_speed_32x',
+    branch: 'TRANSCENDENT',
+    tier: 1,
+    name: '極限加速・32倍速',
+    costSp: 10,
+    description: '超高難度周回向けの探索「32x」モードを解放！さらに勇者の攻撃速度 +20%。',
+    effects: { spdPct: 20 },
+  },
+  {
+    id: 'trans_titan_body',
+    branch: 'TRANSCENDENT',
+    tier: 1,
+    name: '神域の肉体',
+    costSp: 12,
+    description: '勇者の基礎攻撃力 +150% · 防御力 +150% · 最大HP +180% · 攻撃速度 +35%。',
+    effects: { atkPct: 150, defPct: 150, hpPct: 180, spdPct: 35 },
+  },
+  {
+    id: 'trans_war_god',
+    branch: 'TRANSCENDENT',
+    tier: 1,
+    name: '万象砕く闘神',
+    costSp: 15,
+    description: '勇者の基礎攻撃力 +180% · 会心率 +30% · 会心ダメージ +100% · 吸血 +15%。',
+    effects: { atkPct: 180, critPct: 30, critDmgPct: 100, lifestealPct: 15 },
+  },
+  {
+    id: 'conv_speed_64x',
+    branch: 'TRANSCENDENT',
+    tier: 2,
+    name: '神速領域・64倍速',
+    costSp: 20,
+    requiresAny: ['conv_speed_32x'],
+    description: '究極の探索速度「64x」モードを解放！さらに勇者・味方の攻撃速度 +40%。',
+    effects: { spdPct: 40, allySpdPct: 40 },
+  },
+  {
+    id: 'trans_abyss_bond',
+    branch: 'TRANSCENDENT',
+    tier: 2,
+    name: '星界の軍勢',
+    costSp: 20,
+    requiresAny: ['trans_titan_body', 'trans_war_god'],
+    description: '味方全員の攻撃・回復・HP +220% · 味方防御 +150% · 味方速度 +45% · 勇者の攻防HP 30%を追加同調！',
+    effects: { allyPowerPct: 220, allyHpPct: 220, allyDefPct: 150, allySpdPct: 45, heroStatSharePct: 30 },
+  },
+  {
+    id: 'trans_fortune_void',
+    branch: 'TRANSCENDENT',
+    tier: 2,
+    name: '無限の財宝律',
+    costSp: 20,
+    requiresAny: ['trans_titan_body', 'trans_war_god'],
+    description: '獲得ゴールド +250% · 素材ドロップ +150% · 消耗品 +120% · 全体枠 +4 · 全タイプ枠 +2 · 踏破の証 +4！',
+    effects: { goldPct: 250, dropPct: 150, consumablePowerPct: 120, extraMeterCap: 4, extraTypeMeterCap: 2, extraCrests: 4 },
+  },
+  {
+    id: 'trans_omega_ascension',
+    branch: 'TRANSCENDENT',
+    tier: 4,
+    name: '【真奥義】深淵超越',
+    costSp: 30,
+    requiresAny: ['trans_abyss_bond', 'trans_fortune_void'],
+    description: '勇者・味方の全攻防HP +300% · 会心ダメ +120% · 全員被ダメ -20% · 毎階全員HP +250回復！',
+    effects: {
+      atkPct: 300,
+      defPct: 300,
+      hpPct: 300,
+      allyPowerPct: 300,
+      allyHpPct: 300,
+      allyDefPct: 300,
+      critDmgPct: 120,
+      dmgReductionPct: 20,
+      allyDmgReductionPct: 20,
+      roomHeal: 250,
+    },
+  },
 ];
 
 export const DUNGEON_EVENTS: DungeonEventDef[] = [
@@ -2283,6 +2506,9 @@ export const INITIAL_SAVE_STATE: SaveState = {
     iron_ore: 2,
     magic_stone: 1,
     ancient_scroll: 0,
+    abyss_shard: 0,
+    void_gear: 0,
+    chaos_prism: 0,
   },
   inventory: {
     wooden_sword: 1,
@@ -2334,7 +2560,31 @@ export const INITIAL_SAVE_STATE: SaveState = {
   presets: createDefaultPresets(),
   itemRefineLevels: {},
   seenAnnouncements: [],
+  lifetimeStats: {
+    playTimeSeconds: 0,
+    totalGoldEarned: 0,
+    totalGoldSpent: 0,
+    totalUpgrades: 0,
+    totalItemsUsed: 0,
+    totalConsumableActivations: 0,
+    totalItemsBought: 0,
+    totalItemsCrafted: 0,
+    totalItemsRefined: 0,
+    totalItemsSalvaged: 0,
+    totalHeroLevelsGained: 0,
+    totalAllyLevelsGained: 0,
+    totalEnemiesDefeated: 0,
+    totalBossesDefeated: 0,
+    totalDamageDealt: 0,
+    totalHealingDone: 0,
+    totalCrestsEarned: 0,
+    totalMaterialsEarned: 0,
+    totalReincarnations: 0,
+    recentRuns: [],
+  },
 };
+
+export const INITIAL_LIFETIME_STATS: LifetimeStats = INITIAL_SAVE_STATE.lifetimeStats;
 
 export const CONVENIENCE_UPGRADES: ConvenienceUpgradeDef[] = [
   {
@@ -2383,7 +2633,17 @@ export const CONVENIENCE_UPGRADES: ConvenienceUpgradeDef[] = [
   },
 ];
 
-export const CONVENIENCE_UPGRADE_IDS: ConvenienceUpgradeId[] = CONVENIENCE_UPGRADES.map((c) => c.id);
+export const CONVENIENCE_UPGRADE_IDS: ConvenienceUpgradeId[] = [
+  ...CONVENIENCE_UPGRADES.map((c) => c.id),
+  'conv_speed_32x',
+  'conv_speed_64x',
+];
+
+export const ENDLESS_TRUE_ENDGAME_FLOOR = 100;
+
+export function isTrueEndgameUnlocked(save: SaveState): boolean {
+  return (save.bestEndlessFloor ?? 0) >= ENDLESS_TRUE_ENDGAME_FLOOR;
+}
 
 export function hasConvenience(save: SaveState, id: ConvenienceUpgradeId): boolean {
   return (
@@ -2414,6 +2674,8 @@ export function getEffectiveDiveLoop(
 }
 
 export function getMaxUnlockedSpeed(save: SaveState): GameSpeed {
+  if (hasConvenience(save, 'conv_speed_64x')) return 64;
+  if (hasConvenience(save, 'conv_speed_32x')) return 32;
   if (hasConvenience(save, 'conv_speed_16x')) return 16;
   if (hasConvenience(save, 'conv_speed_8x')) return 8;
   if (hasConvenience(save, 'conv_speed_4x')) return 4;
@@ -2422,7 +2684,7 @@ export function getMaxUnlockedSpeed(save: SaveState): GameSpeed {
 
 export function clampSpeedToUnlocked(speed: number | undefined, save: SaveState): GameSpeed {
   const maxSpd = getMaxUnlockedSpeed(save);
-  const valid: GameSpeed[] = [1, 2, 4, 8, 16];
+  const valid: GameSpeed[] = [1, 2, 4, 8, 16, 32, 64];
   const candidate = valid.includes(speed as GameSpeed) ? (speed as GameSpeed) : 1;
   return candidate <= maxSpd ? candidate : maxSpd;
 }
@@ -2668,6 +2930,65 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 
 export const ALL_ACHIEVEMENT_IDS = ACHIEVEMENTS.map((a) => a.id);
 
+export const SECRET_ACHIEVEMENTS: AchievementDef[] = [
+  {
+    id: 'sach_endless_100',
+    title: '【裏】深淵百層の突破者',
+    category: 'CHALLENGE',
+    description: '無限回廊で 100F に到達（突破）する。',
+    rewardText: '勇者・味方 全攻防HP +20% / 獲得G +25%',
+    spriteId: 'item_infinity_crown',
+    bonus: { heroAndAllyStatsPct: 20, goldPct: 25 },
+  },
+  {
+    id: 'sach_endless_150',
+    title: '【裏】深淵を征す覇者',
+    category: 'CHALLENGE',
+    description: '無限回廊で 150F に到達する。',
+    rewardText: '勇者・味方 攻撃+25% / 会心ダメ+35% / 速度+15%',
+    spriteId: 'boss_eternal_overlord',
+    bonus: { atkPct: 25, allyPowerPct: 25, critDmgPct: 35, spdPct: 15, allySpdPct: 15 },
+  },
+  {
+    id: 'sach_endless_200',
+    title: '【裏】無限の超越者',
+    category: 'CHALLENGE',
+    description: '無限回廊で 200F に到達する。',
+    rewardText: '勇者・味方 全攻防HP +35% / 被ダメ -8%',
+    spriteId: 'item_void_lance',
+    bonus: { heroAndAllyStatsPct: 35, dmgReductionPct: 8 },
+  },
+  {
+    id: 'sach_god_slayer',
+    title: '【裏】極限一撃の神域',
+    category: 'COMBAT',
+    description: '1回の攻撃で 10,000ダメージ以上 を叩き出す。',
+    rewardText: '会心率 +12% / 会心ダメ +50% / 吸血 +5%',
+    spriteId: 'item_god_blade',
+    bonus: { critPct: 12, critDmgPct: 50, lifestealPct: 5 },
+  },
+  {
+    id: 'sach_forge_mythic',
+    title: '【裏】神域鍛冶の継承者',
+    category: 'PROGRESSION',
+    description: '無限100F突破後に解放される鍛冶屋限定装備を1つ以上鍛造する。',
+    rewardText: '素材ドロップ +35% / 勇者・味方 防御+25% · HP+20%',
+    spriteId: 'item_omega_armor',
+    bonus: { dropPct: 35, defPct: 25, hpPct: 20, allyHpPct: 20 },
+  },
+  {
+    id: 'sach_transcendent_master',
+    title: '【裏】超越せし極み',
+    category: 'PROGRESSION',
+    description: '「深淵超越の道」の高コストスキル（32倍速・64倍速など）を1つ以上習得する。',
+    rewardText: '勇者・味方 全攻防HP +25% / 味方速度 +20%',
+    spriteId: 'item_abyss_core',
+    bonus: { heroAndAllyStatsPct: 25, allySpdPct: 20 },
+  },
+];
+
+export const ALL_SECRET_ACHIEVEMENT_IDS = SECRET_ACHIEVEMENTS.map((a) => a.id);
+
 export function areAllAchievementsUnlocked(save: SaveState): boolean {
   const unlockedSet = new Set(save.unlockedAchievements ?? []);
   return ALL_ACHIEVEMENT_IDS.every((id) => unlockedSet.has(id));
@@ -2676,15 +2997,26 @@ export function areAllAchievementsUnlocked(save: SaveState): boolean {
 export function getAchievementBonuses(save: SaveState): Required<AchievementBonus> & {
   unlockedCount: number;
   totalCount: number;
+  secretUnlockedCount: number;
+  secretTotalCount: number;
 } {
   const unlockedSet = new Set(save.unlockedAchievements ?? []);
   const unlockedCount = ALL_ACHIEVEMENT_IDS.filter((id) => unlockedSet.has(id)).length;
+  const secretUnlockedCount = ALL_SECRET_ACHIEVEMENT_IDS.filter((id) => unlockedSet.has(id)).length;
+  const totalRankCount = unlockedCount + secretUnlockedCount;
 
   // Per-achievement cumulative power rank: each unlocked achievement boosts Hero & Allies +3% stats and +4% gold!
-  const out: Required<AchievementBonus> & { unlockedCount: number; totalCount: number } = {
+  const out: Required<AchievementBonus> & {
+    unlockedCount: number;
+    totalCount: number;
+    secretUnlockedCount: number;
+    secretTotalCount: number;
+  } = {
     unlockedCount,
     totalCount: ACHIEVEMENTS.length,
-    heroAndAllyStatsPct: unlockedCount * 3,
+    secretUnlockedCount,
+    secretTotalCount: SECRET_ACHIEVEMENTS.length,
+    heroAndAllyStatsPct: totalRankCount * 3,
     atkPct: 0,
     defPct: 0,
     hpPct: 0,
@@ -2693,14 +3025,14 @@ export function getAchievementBonuses(save: SaveState): Required<AchievementBonu
     critDmgPct: 0,
     lifestealPct: 0,
     dmgReductionPct: 0,
-    allyPowerPct: unlockedCount * 3,
+    allyPowerPct: totalRankCount * 3,
     allySpdPct: 0,
-    allyHpPct: unlockedCount * 3,
-    goldPct: unlockedCount * 4,
+    allyHpPct: totalRankCount * 3,
+    goldPct: totalRankCount * 4,
     dropPct: 0,
   };
 
-  ACHIEVEMENTS.forEach((ach) => {
+  [...ACHIEVEMENTS, ...SECRET_ACHIEVEMENTS].forEach((ach) => {
     if (!unlockedSet.has(ach.id)) return;
     const b = ach.bonus;
     out.heroAndAllyStatsPct += b.heroAndAllyStatsPct ?? 0;
@@ -2803,17 +3135,17 @@ export function getSkillTreeBonuses(
 ): Required<SkillNodeEffects> {
   const mastery = Math.max(0, Math.floor(spMasteryLevel));
   const out: Required<SkillNodeEffects> = {
-    atkPct: mastery * 12,
-    defPct: mastery * 12,
-    hpPct: mastery * 12,
+    atkPct: mastery * 8,
+    defPct: mastery * 8,
+    hpPct: mastery * 8,
     spdPct: 0,
     critPct: 0,
     critDmgPct: 0,
     lifestealPct: 0,
-    allyPowerPct: mastery * 8,
+    allyPowerPct: mastery * 6,
     allySpdPct: 0,
-    allyHpPct: mastery * 8,
-    allyDefPct: mastery * 6,
+    allyHpPct: mastery * 6,
+    allyDefPct: mastery * 4,
     allyCritPct: 0,
     allyDmgReductionPct: 0,
     allyLifestealPct: 0,
@@ -2821,7 +3153,7 @@ export function getSkillTreeBonuses(
     allyOverdrive: false,
     dmgReductionPct: 0,
     roomHeal: 0,
-    goldPct: mastery * 8,
+    goldPct: mastery * 6,
     dropPct: 0,
     consumablePowerPct: 0,
     extraMeterCap: 0,
@@ -3127,29 +3459,81 @@ export function getItemRefineCost(
   };
 }
 
+export function getItemRefineRangeCost(
+  itemId: string,
+  fromLevel: number,
+  toLevel: number = MAX_ITEM_REFINE
+): { gold: number; iron: number; stone: number; scroll: number; steps: number } {
+  const start = Math.max(0, Math.min(MAX_ITEM_REFINE, fromLevel));
+  const end = Math.max(start, Math.min(MAX_ITEM_REFINE, toLevel));
+  let gold = 0;
+  let iron = 0;
+  let stone = 0;
+  let scroll = 0;
+  for (let lv = start; lv < end; lv++) {
+    const c = getItemRefineCost(itemId, lv);
+    gold += c.gold;
+    iron += c.iron;
+    stone += c.stone;
+    scroll += c.scroll;
+  }
+  return { gold, iron, stone, scroll, steps: end - start };
+}
+
 export function getItemSalvageReward(itemId: string): {
   gold: number;
   materials: MaterialBag;
 } {
   const item = ITEMS[itemId];
   if (!item) {
-    return { gold: 0, materials: { iron_ore: 0, magic_stone: 0, ancient_scroll: 0 } };
+    return {
+      gold: 0,
+      materials: {
+        iron_ore: 0,
+        magic_stone: 0,
+        ancient_scroll: 0,
+        abyss_shard: 0,
+        void_gear: 0,
+        chaos_prism: 0,
+      },
+    };
   }
   if (item.rarity === 'EPIC') {
     return {
       gold: Math.round(item.sellPrice * 0.5),
-      materials: { iron_ore: 3, magic_stone: 2, ancient_scroll: 1 },
+      materials: {
+        iron_ore: 3,
+        magic_stone: 2,
+        ancient_scroll: 1,
+        abyss_shard: 0,
+        void_gear: 0,
+        chaos_prism: 0,
+      },
     };
   }
   if (item.rarity === 'RARE') {
     return {
       gold: Math.round(item.sellPrice * 0.5),
-      materials: { iron_ore: 2, magic_stone: 1, ancient_scroll: 0 },
+      materials: {
+        iron_ore: 2,
+        magic_stone: 1,
+        ancient_scroll: 0,
+        abyss_shard: 0,
+        void_gear: 0,
+        chaos_prism: 0,
+      },
     };
   }
   return {
     gold: Math.round(item.sellPrice * 0.5),
-    materials: { iron_ore: 1, magic_stone: 0, ancient_scroll: 0 },
+    materials: {
+      iron_ore: 1,
+      magic_stone: 0,
+      ancient_scroll: 0,
+      abyss_shard: 0,
+      void_gear: 0,
+      chaos_prism: 0,
+    },
   };
 }
 
@@ -3445,6 +3829,8 @@ export function getEnemyStageHint(enemyId: string): string {
 export function getItemMeterCost(itemId: string): number {
   const item = ITEMS[itemId];
   if (!item) return 0;
+  if (item.isForgeExclusive) return 10;
+  if (item.isUltimate) return 5;
   return RARITY_COST[item.rarity] ?? 1;
 }
 
@@ -3463,7 +3849,7 @@ export function getPouchMeterUsage(pouch: (string | null)[]): {
     if (!itemId) return;
     const item = ITEMS[itemId];
     if (!item) return;
-    const cost = RARITY_COST[item.rarity] ?? 1;
+    const cost = getItemMeterCost(itemId);
     byCategory[item.category] += cost;
     total += cost;
   });
@@ -3628,7 +4014,7 @@ export const FEATURE_UNLOCKS: Record<TownTab, FeatureUnlockDef> = {
     lockDescription: 'チャレンジ的な実績を達成するほど勇者と仲間が永続強化され、全実績解除で【極】強化ボスラッシュが開放されます。',
     guideTitle: 'チャレンジ実績：解除するほど強くなる永続報酬',
     guideBody:
-      '縛り攻略や一撃必殺などの実績を解除するたび、勇者と仲間の攻防HPやゴールド効率が永続で伸びていきます。全12実績をコンプリートすると「【極】強化ボスラッシュ」が開放され、踏破で最強装備4種が確定入手できます！',
+      '縛り攻略や一撃必殺などの実績を解除するたび、勇者と仲間の攻防HPやゴールド効率が永続で伸びていきます。全12実績をコンプリートすると「【極】強化ボスラッシュ」が開放され、踏破時に2%の超低確率で最強装備4種のいずれか1つを狙えます！',
   },
   TAVERN: {
     tab: 'TAVERN',
@@ -3658,7 +4044,7 @@ export const FEATURE_UNLOCKS: Record<TownTab, FeatureUnlockDef> = {
     lockDescription: 'ダンジョンで拾った「鉄鉱石」「魔石」「古文書」を使って強力な装備や魔道具を鍛造します。',
     guideTitle: 'ドワーフの鍛冶屋：素材から切り札を鍛造',
     guideBody:
-      '道具屋では買えない強力な装備や魔道具を素材から作れます。レア度が高い装備ほどメーター負荷（RARE=2 / EPIC=3）も大きくなるため、袋の上限と相談しながら持ち込みましょう。',
+      '道具屋では買えない強力な装備や魔道具を素材から作れます。レア度や格が高い装備ほどメーター負荷（RARE=2 / EPIC=3 / 最強=5 / 鍛冶限定=10）も大きくなるため、袋の上限と相談しながら持ち込みましょう。',
   },
   SHRINE: {
     tab: 'SHRINE',
@@ -3843,7 +4229,7 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
     badge: '全実績制覇報酬',
     title: '【極】終焉の強化ボスラッシュが解放！',
     description:
-      '全12実績の制覇おめでとうございます！強化された歴代ボス9体と連戦する極限ステージが解放され、踏破で最強装備4種（ジェネシス・イージス・覇王冠・アンブロシア）を確定で1つずつ獲得できます！',
+      '全12実績の制覇おめでとうございます！強化された歴代ボス9体と連戦する極限ステージが解放され、踏破時に2%の超低確率で最強装備4種（ジェネシス・イージス・覇王冠・アンブロシア）のいずれか1つがドロップします（確定ドロップなし）！',
     spriteId: 'item_god_blade',
     accent: 'rose',
     targetTab: 'PREP',
@@ -3861,6 +4247,18 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
     targetTab: 'PREP',
     actionLabel: '無限回廊を確認',
     isUnlocked: (save) => isEndlessUnlocked(save),
+  },
+  {
+    id: 'unlock_endless_100',
+    badge: '真のエンドコンテンツ解放',
+    title: '無限回廊 100F突破！裏実績・神域鍛造・超越スキルツリー（32x/64x）解放！',
+    description:
+      '無限回廊100階到達おめでとうございます！①永続強化の「裏実績（全6種）」②鍛冶屋限定の究極装備4種 ③大量SPを消費して圧倒的な力と「32倍速(10SP) / 64倍速(20SP)」を得る新スキルツリー「深淵超越の道」が解禁されました！',
+    spriteId: 'item_void_lance',
+    accent: 'purple',
+    targetTab: 'SKILLS',
+    actionLabel: '超越スキルを見る',
+    isUnlocked: (save) => isTrueEndgameUnlocked(save),
   },
 ];
 

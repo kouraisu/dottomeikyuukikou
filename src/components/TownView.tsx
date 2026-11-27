@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Award, Compass, HelpCircle, Lock, Repeat, RotateCcw, Sparkles, Trash2, Zap } from 'lucide-react';
+import { Award, Compass, HelpCircle, History, Lock, Repeat, RotateCcw, Sparkles, Trash2, Zap } from 'lucide-react';
 import dungeonDepthsImg from '../assets/images/pixel_dungeon_depths_1795345080012.jpg';
 import shrineAltarImg from '../assets/images/pixel_sanctuary_altar_1795345079265.jpg';
 import {
@@ -7,6 +7,7 @@ import {
   ALLIES,
   areAllAchievementsUnlocked,
   AUTO_EQUIP_STYLE_META,
+  BASE_MATERIAL_IDS,
   BLESSINGS,
   canReincarnate,
   computePartyPower,
@@ -14,6 +15,7 @@ import {
   CREST_EXCHANGE_OPTIONS,
   DUNGEON_EVENTS,
   ENDLESS_BENCHMARK_LOOP,
+  ENDLESS_RARE_PART_IDS,
   ENEMIES,
   FEATURE_UNLOCKS,
   FORGE_RECIPES,
@@ -35,6 +37,7 @@ import {
   getItemEffectiveStats,
   getItemMeterCost,
   getItemRefineCost,
+  getItemRefineRangeCost,
   getItemSalvageReward,
   getLoopEnemyStatMult,
   getLoopRewardMult,
@@ -57,10 +60,12 @@ import {
   isStageClearedInCurrentLoop,
   isStageUnlockedForPlay,
   isTabUnlocked,
+  isTrueEndgameUnlocked,
   ITEMS,
   MATERIAL_INFO,
   MAX_ITEM_REFINE,
   MAX_POUCH_SLOTS,
+  SECRET_ACHIEVEMENTS,
   SKILL_TREE,
   STAGES,
   SYNERGIES,
@@ -96,7 +101,8 @@ interface TownViewProps {
   onBuyItem: (itemId: string) => void;
   onSellItem: (itemId: string) => void;
   onCraftRecipe: (recipeId: string) => void;
-  onRefineItem: (itemId: string) => void;
+  onRefineItem: (itemId: string, toMax?: boolean) => void;
+  onBulkRefinePouch: () => void;
   onSalvageItem: (itemId: string) => void;
   onBulkSalvageSurplus: () => void;
   onExchangeCrest: (optionId: string) => void;
@@ -112,7 +118,7 @@ interface TownViewProps {
   onTrainHero: () => void;
   onBulkTrainHero: () => void;
   onUnlockSkill: (skillId: string) => void;
-  onUpgradeSpMastery: () => void;
+  onUpgradeSpMastery: (steps?: number) => void;
   onResetSkills: () => void;
   onSelectStage: (stageId: number) => void;
   onSelectPracticeLoop: (loop: number | null) => void;
@@ -120,6 +126,7 @@ interface TownViewProps {
   onToggleAutoRepeat: () => void;
   onToggleAutoRestock: () => void;
   onStartExpedition: () => void;
+  onOpenHistory: () => void;
   onOpenSettings: () => void;
   onDismissGuide: (tab: TownTab) => void;
   onReopenGuide: (tab: TownTab) => void;
@@ -174,6 +181,7 @@ export const TownView: React.FC<TownViewProps> = ({
   onSellItem,
   onCraftRecipe,
   onRefineItem,
+  onBulkRefinePouch,
   onSalvageItem,
   onBulkSalvageSurplus,
   onExchangeCrest,
@@ -197,6 +205,7 @@ export const TownView: React.FC<TownViewProps> = ({
   onToggleAutoRepeat,
   onToggleAutoRestock,
   onStartExpedition,
+  onOpenHistory,
   onOpenSettings,
   onDismissGuide,
   onReopenGuide,
@@ -216,6 +225,7 @@ export const TownView: React.FC<TownViewProps> = ({
   const nextUnlockHint = useMemo(() => getNextUnlockHint(save), [save]);
   const reincarnateReady = useMemo(() => canReincarnate(save), [save]);
   const endlessUnlocked = useMemo(() => isEndlessUnlocked(save), [save]);
+  const trueEndgameUnlocked = useMemo(() => isTrueEndgameUnlocked(save), [save]);
   const loreUnlocked = save.loopCount >= 2 || (save.highestClearedLoop ?? 0) >= 1;
   const presets = useMemo(() => save.presets ?? createDefaultPresets(), [save.presets]);
   const activeSynergies = useMemo(() => getActiveSynergies(save), [save]);
@@ -374,7 +384,7 @@ export const TownView: React.FC<TownViewProps> = ({
             </div>
             <div className="h-7 w-px bg-[#2b3040] hidden sm:block" />
             <div className="flex flex-wrap items-center gap-4 sm:gap-5">
-              {(['iron_ore', 'magic_stone', 'ancient_scroll'] as const).map((matKey) => (
+              {BASE_MATERIAL_IDS.map((matKey) => (
                 <div key={matKey} className="flex items-center gap-2">
                   <PixelSprite id={MATERIAL_INFO[matKey].spriteId} size={22} />
                   <div>
@@ -387,13 +397,44 @@ export const TownView: React.FC<TownViewProps> = ({
                   </div>
                 </div>
               ))}
+              {(endlessUnlocked ||
+                ENDLESS_RARE_PART_IDS.some((id) => (save.materials[id] ?? 0) > 0)) && (
+                <>
+                  <div className="h-7 w-px bg-[#2b3040] hidden sm:block" />
+                  {ENDLESS_RARE_PART_IDS.map((matKey) => (
+                    <div
+                      key={matKey}
+                      className="flex items-center gap-2"
+                      title={`${MATERIAL_INFO[matKey].name}（無限回廊の全敵から超絶低確率でドロップ）`}
+                    >
+                      <PixelSprite id={MATERIAL_INFO[matKey].spriteId} size={22} />
+                      <div>
+                        <div className="text-[11px] text-purple-300 leading-tight">
+                          {MATERIAL_INFO[matKey].name}
+                        </div>
+                        <div className="font-num text-sm font-bold text-purple-100">
+                          {save.materials[matKey] ?? 0}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <div className="text-xs text-slate-300 font-num">
               第{save.loopCount}周 · 出撃 {save.totalRuns}回 · 踏破 {save.totalClears}回
             </div>
+            <button
+              type="button"
+              onClick={onOpenHistory}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#1d2538] hover:bg-[#27334d] text-sky-200 border border-sky-500/40 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5 text-sky-300" />
+              <span>履歴・戦績</span>
+            </button>
             <button
               type="button"
               onClick={onOpenSettings}
@@ -539,7 +580,7 @@ export const TownView: React.FC<TownViewProps> = ({
                     倉庫と持ち込み準備
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    レアリティごとにメーター負荷が決まります（COMMON: 1 · RARE: 2 · EPIC: 3）。全体メーターとタイプ別上限の中で最大5つまで持ち込めます。
+                    レアリティや格ごとにメーター負荷が決まります（COMMON: 1 · RARE: 2 · EPIC: 3 · 最強: 5 · 鍛冶限定: 10）。全体メーターとタイプ別上限の中で最大5つまで持ち込めます。
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -1542,32 +1583,57 @@ export const TownView: React.FC<TownViewProps> = ({
               </div>
 
               {/* Repeatable SP Mastery Sink */}
-              <div className={`pixel-slot p-4 border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${!unlocks.skills ? 'opacity-60' : ''}`}>
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-pixel text-base text-amber-300">
-                      SP極限鍛錬
-                    </span>
-                    <span className="font-num text-xs font-bold text-emerald-300">
-                      現在 Lv.{save.spMasteryLevel ?? 0}
-                    </span>
+              <div className={`pixel-slot p-4 border-amber-500/40 flex flex-col gap-3 ${!unlocks.skills ? 'opacity-60' : ''}`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-pixel text-base text-amber-300">
+                        SP極限鍛錬
+                      </span>
+                      <span className="font-num text-xs font-bold text-emerald-300">
+                        現在 Lv.{save.spMasteryLevel ?? 0}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      余剰SPで何度でも底上げ可能（一括投入対応）。1レベルごとに{' '}
+                      <span className="text-amber-200 font-num font-bold">
+                        勇者 攻・防・HP +8% · 仲間能力・HP +6% · 仲間防御 +4% · 獲得ゴールド +6%
+                      </span>{' '}
+                      が加算されます（振り直しで全SP返却）。
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    1 SPで何度でも底上げ可能。1レベルごとに{' '}
-                    <span className="text-amber-200 font-num font-bold">
-                      勇者 攻・防・HP +12% · 仲間能力 +8% · 獲得ゴールド +8%
-                    </span>{' '}
-                    が加算されます（振り直しで全SP返却）。
-                  </p>
+                  {!unlocks.skills ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="px-4 py-2 text-xs font-bold bg-[#222736] text-slate-500 cursor-not-allowed whitespace-nowrap shrink-0"
+                    >
+                      ステージ4踏破で解放
+                    </button>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                      {[1, 5, 10].map((step) => (
+                        <button
+                          key={step}
+                          type="button"
+                          onClick={() => onUpgradeSpMastery(step)}
+                          disabled={save.skillPoints < step}
+                          className="px-3 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-[#222736] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer font-num"
+                        >
+                          +{step} ({step}SP)
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => onUpgradeSpMastery(save.skillPoints)}
+                        disabled={save.skillPoints < 1}
+                        className="px-3 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-[#222736] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer font-num"
+                      >
+                        全SP投入 ({save.skillPoints}SP)
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={onUpgradeSpMastery}
-                  disabled={!unlocks.skills || save.skillPoints < 1}
-                  className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-[#222736] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  {unlocks.skills ? '鍛錬する (1SP)' : 'ステージ4踏破で解放'}
-                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
@@ -1710,6 +1776,141 @@ export const TownView: React.FC<TownViewProps> = ({
                   );
                 })}
               </div>
+
+              {/* TRANSCENDENT SKILL TREE (Unlocked at Endless Corridor 100F+) */}
+              {(() => {
+                const transNodes = SKILL_TREE.filter((n) => n.branch === 'TRANSCENDENT');
+                const t1 = transNodes.filter((n) => n.tier === 1);
+                const t2 = transNodes.filter((n) => n.tier === 2);
+                const t4 = transNodes.filter((n) => n.tier === 4);
+
+                const renderTransNode = (node: (typeof transNodes)[number]) => {
+                  const unlocked =
+                    (save.unlockedSkills ?? []).includes(node.id) ||
+                    (save.unlockedConveniences ?? []).includes(node.id as never);
+                  const reqMet =
+                    !node.requiresAny ||
+                    node.requiresAny.some(
+                      (reqId) =>
+                        (save.unlockedSkills ?? []).includes(reqId) ||
+                        (save.unlockedConveniences ?? []).includes(reqId as never)
+                    );
+                  const canAfford = save.skillPoints >= node.costSp;
+                  const canLearn = trueEndgameUnlocked && !unlocked && reqMet && canAfford;
+
+                  return (
+                    <div
+                      key={node.id}
+                      className={`p-3 border space-y-2 ${
+                        unlocked
+                          ? 'bg-[#1f1631] border-purple-400/80'
+                          : 'bg-[#12151d] border-[#31284a]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs font-bold text-purple-100 leading-snug">
+                          {node.name}
+                        </div>
+                        <span
+                          className={`font-num text-[11px] shrink-0 font-bold ${
+                            unlocked ? 'text-emerald-300' : 'text-amber-300'
+                          }`}
+                        >
+                          {unlocked ? '習得済' : `${node.costSp}SP`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        {node.description}
+                      </p>
+                      {!unlocked && (
+                        <button
+                          type="button"
+                          onClick={() => onUnlockSkill(node.id)}
+                          disabled={!canLearn}
+                          className="w-full py-1.5 px-2 text-[11px] font-bold bg-purple-500 hover:bg-purple-400 text-white disabled:bg-[#222736] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          {!trueEndgameUnlocked
+                            ? '無限回廊100F突破で解放'
+                            : !reqMet
+                              ? '前提スキル未習得'
+                              : !canAfford
+                                ? `SP不足 (要${node.costSp}SP)`
+                                : `習得する (${node.costSp}SP)`}
+                        </button>
+                      )}
+                    </div>
+                  );
+                };
+
+                return (
+                  <div
+                    className={`pixel-slot p-4 space-y-3 border-2 ${
+                      trueEndgameUnlocked
+                        ? 'border-purple-400/75 bg-[#151123]'
+                        : 'border-[#332a46] bg-[#12131c] opacity-80'
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2c2540] pb-2.5">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          {!trueEndgameUnlocked && <Lock className="w-4 h-4 text-purple-300 shrink-0" />}
+                          <span className="font-pixel text-base text-purple-300">
+                            深淵超越の道（真・エンドコンテンツ）
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-0.5">
+                          無限回廊100F突破で開放。大量のSP（10〜30SP）を要する代わりに、32倍速・64倍速や規格外の神域強化を得られます。
+                        </p>
+                      </div>
+                      <span className="font-num text-xs font-bold text-amber-300 shrink-0">
+                        {trueEndgameUnlocked
+                          ? '開放済（100F突破）'
+                          : `最高記録 ${save.bestEndlessFloor ?? 0} / 100F`}
+                      </span>
+                    </div>
+
+                    {!trueEndgameUnlocked ? (
+                      <div className="bg-[#0e1018] border border-[#2a243b] px-4 py-5 text-center space-y-1">
+                        <div className="text-xs font-bold text-purple-200">
+                          【無限】終わらぬ深淵回廊 100F 到達で解放されます
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          「極限加速・32倍速 (10SP)」「神速領域・64倍速 (20SP)」や全ステータス+300%の真奥義がここに眠っています。
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-num text-purple-300 font-bold">
+                            TIER 1 · 超越の入口（10〜15SP）
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                            {t1.map(renderTransNode)}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-num text-amber-300 font-bold">
+                            TIER 2 · 神域の法則（20SP · 前提ノード必要）
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                            {t2.map(renderTransNode)}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-num text-rose-300 font-bold">
+                            TIER 4 · 真奥義（30SP）
+                          </div>
+                          <div className="grid grid-cols-1 gap-2.5">
+                            {t4.map(renderTransNode)}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </section>
           );
         })()}
@@ -1736,10 +1937,14 @@ export const TownView: React.FC<TownViewProps> = ({
             <div className="pixel-slot p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="font-bold text-slate-100">
-                  累積実績ランク +{achBonus.unlockedCount}（1実績ごとに 勇者・味方攻防HP+3% · 獲得G+4%）
+                  累積実績ランク +{achBonus.unlockedCount + achBonus.secretUnlockedCount}
+                  {achBonus.secretUnlockedCount > 0
+                    ? `（通常${achBonus.unlockedCount} + 裏${achBonus.secretUnlockedCount}）`
+                    : ''}
+                  （1実績ごとに 勇者・味方攻防HP+3% · 獲得G+4%）
                 </span>
                 <span className="font-num text-amber-300 font-bold">
-                  {Math.round((achBonus.unlockedCount / Math.max(1, achBonus.totalCount)) * 100)}% 達成
+                  通常 {Math.round((achBonus.unlockedCount / Math.max(1, achBonus.totalCount)) * 100)}% 達成
                 </span>
               </div>
               <div className="h-3 bg-[#0e1118] border border-[#2b3040] overflow-hidden">
@@ -1795,7 +2000,7 @@ export const TownView: React.FC<TownViewProps> = ({
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
                 全12実績を達成すると究極の9連戦ステージ「<span className="text-rose-300 font-bold">【極】終焉の強化ボスラッシュ</span>」が解禁されます。
-                最強装備4種（武器・防具・魔道具・霊薬）は<span className="text-amber-300 font-bold">強化ボスラッシュ踏破で確定1つずつ</span>、さらに<span className="text-purple-300 font-bold">【裏】ダンジョン（ステージ7〜9）踏破時に5%の確率でいずれか1つ</span>ドロップします！
+                最強装備4種（武器・防具・魔道具・霊薬）は確定ドロップがなく、<span className="text-amber-300 font-bold">強化ボスラッシュ踏破で2%</span>、<span className="text-purple-300 font-bold">【裏】ダンジョン（ステージ7〜9）踏破で0.5%</span>、<span className="text-sky-300 font-bold">無限回廊15F以降の5F毎ボス撃破で0.8%</span>の超低確率でいずれか1つドロップします！
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1903,6 +2108,97 @@ export const TownView: React.FC<TownViewProps> = ({
                 );
               })}
             </div>
+
+            {/* Secret Endgame Achievements (Unlocked at Endless Corridor 100F+) */}
+            <div
+              className={`border-2 p-4 space-y-3 ${
+                trueEndgameUnlocked
+                  ? 'bg-[#161126] border-purple-400/80'
+                  : 'bg-[#12131c] border-[#2e2840] opacity-85'
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2e2642] pb-2.5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    {!trueEndgameUnlocked && <Lock className="w-4 h-4 text-purple-300 shrink-0" />}
+                    <span className="font-pixel text-base text-purple-300">
+                      裏実績（無限回廊100F突破チャレンジ · 全{achBonus.secretTotalCount}種）
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    無限回廊100Fを突破した冒険者にのみ開示される究極の実績群。通常実績12/12枠とは別枠で永続ボーナスが加算されます。
+                  </p>
+                </div>
+                <span className="font-num text-sm font-bold text-amber-300 shrink-0">
+                  {trueEndgameUnlocked
+                    ? `${achBonus.secretUnlockedCount} / ${achBonus.secretTotalCount} 達成`
+                    : `現在 ${save.bestEndlessFloor ?? 0} / 100F`}
+                </span>
+              </div>
+
+              {!trueEndgameUnlocked ? (
+                <div className="bg-[#0e1018] border border-[#2a243b] px-4 py-5 text-center space-y-1">
+                  <div className="text-xs font-bold text-purple-200">
+                    【無限】終わらぬ深淵回廊 100F 到達で裏実績が開放されます
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    開放後、100F・150F・200F踏破や10,000ダメージ達成などの超高難度ミッションに挑めます。
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="h-2.5 bg-[#0e1118] border border-[#2e2642] overflow-hidden">
+                    <div
+                      className="h-full bg-purple-400 transition-all duration-200"
+                      style={{
+                        width: `${Math.round(
+                          (achBonus.secretUnlockedCount / Math.max(1, achBonus.secretTotalCount)) * 100
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {SECRET_ACHIEVEMENTS.map((ach) => {
+                      const unlocked = (save.unlockedAchievements ?? []).includes(ach.id);
+                      return (
+                        <div
+                          key={ach.id}
+                          className={`pixel-slot p-3.5 flex items-start gap-3 ${
+                            unlocked ? 'border-purple-400/85 bg-[#1e1530]' : 'opacity-80'
+                          }`}
+                        >
+                          <div className="w-11 h-11 bg-[#12151d] border border-[#342c4d] flex items-center justify-center shrink-0">
+                            <PixelSprite id={ach.spriteId} size={30} />
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={`text-sm font-bold truncate ${
+                                  unlocked ? 'text-purple-200' : 'text-slate-200'
+                                }`}
+                              >
+                                {ach.title}
+                              </span>
+                              <span
+                                className={`font-num text-[11px] font-bold shrink-0 ${
+                                  unlocked ? 'text-emerald-300' : 'text-slate-500'
+                                }`}
+                              >
+                                {unlocked ? '達成済' : '裏挑戦'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed">{ach.description}</p>
+                            <div className="text-[11px] font-num text-amber-300">
+                              永続効果: {ach.rewardText} (+基礎ランク3%)
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </section>
         )}
 
@@ -1916,13 +2212,23 @@ export const TownView: React.FC<TownViewProps> = ({
                   これまでに出会った魔物・発見したイベント・入手したアイテムを記録します。記録は周回しても引き継がれ、達成率に応じて勇者に永続ボーナスが付与されます。
                 </p>
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-[11px] text-slate-400">総合コンプリート率</div>
-                <div className="font-num text-2xl font-bold text-amber-300">
-                  {compStats.overallPct}%{' '}
-                  <span className="text-xs text-slate-300 font-normal">
-                    ({compStats.foundAll} / {compStats.totalAll})
-                  </span>
+              <div className="flex items-center gap-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={onOpenHistory}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#1d2538] hover:bg-[#27334d] text-sky-200 border border-sky-500/50 transition-colors cursor-pointer"
+                >
+                  <History className="w-3.5 h-3.5 text-sky-300" />
+                  <span>累計履歴・戦績を見る</span>
+                </button>
+                <div className="text-right">
+                  <div className="text-[11px] text-slate-400">総合コンプリート率</div>
+                  <div className="font-num text-2xl font-bold text-amber-300">
+                    {compStats.overallPct}%{' '}
+                    <span className="text-xs text-slate-300 font-normal">
+                      ({compStats.foundAll} / {compStats.totalAll})
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2221,8 +2527,10 @@ export const TownView: React.FC<TownViewProps> = ({
                     .map((it) => {
                       const found = (save.discoveredItems ?? []).includes(it.id);
                       const isCraftOnly = FORGE_RECIPES.some((r) => r.resultItemId === it.id);
-                      const hintText = it.isUltimate
-                        ? '全実績（12/12）解除で入手'
+                      const hintText = it.isForgeExclusive
+                        ? '無限回廊100F突破後・対応最強装備＋無限限定パーツ3種で鍛造'
+                        : it.isUltimate
+                          ? '強化ボスラッシュ踏破(2%)・裏ダンジョン(0.5%)・無限回廊15F以降ボス(0.8%)で超低確率ドロップ'
                         : it.rarity === 'EPIC'
                           ? `${(it.shopUnlockClears ?? 3) >= 4 ? 'ステージ6以降または高周回' : 'ステージ4以降または2周目〜'}のドロップ・鍛冶/店解禁で入手`
                           : isCraftOnly
@@ -2332,20 +2640,37 @@ export const TownView: React.FC<TownViewProps> = ({
                 {FORGE_RECIPES.map((rec) => {
                   const item = ITEMS[rec.resultItemId];
                   if (!item) return null;
-                  const locked =
+                  const stageLocked = Boolean(
                     rec.requiredStageCleared &&
-                    save.highestClearedStage < rec.requiredStageCleared;
+                      save.highestClearedStage < rec.requiredStageCleared
+                  );
+                  const endlessLocked = Boolean(
+                    rec.requiredEndlessFloor &&
+                      (save.bestEndlessFloor ?? 0) < rec.requiredEndlessFloor
+                  );
+                  const locked = stageLocked || endlessLocked;
+                  const isExclusive = Boolean(item.isForgeExclusive || rec.requiredEndlessFloor);
                   const hasGold = save.gold >= rec.goldCost;
                   const hasMats =
-                    save.materials.iron_ore >= (rec.materials.iron_ore ?? 0) &&
-                    save.materials.magic_stone >= (rec.materials.magic_stone ?? 0) &&
-                    save.materials.ancient_scroll >= (rec.materials.ancient_scroll ?? 0);
-                  const canCraft = !locked && hasGold && hasMats;
+                    (save.materials.iron_ore ?? 0) >= (rec.materials.iron_ore ?? 0) &&
+                    (save.materials.magic_stone ?? 0) >= (rec.materials.magic_stone ?? 0) &&
+                    (save.materials.ancient_scroll ?? 0) >= (rec.materials.ancient_scroll ?? 0) &&
+                    (save.materials.abyss_shard ?? 0) >= (rec.materials.abyss_shard ?? 0) &&
+                    (save.materials.void_gear ?? 0) >= (rec.materials.void_gear ?? 0) &&
+                    (save.materials.chaos_prism ?? 0) >= (rec.materials.chaos_prism ?? 0);
+                  const hasReqItems =
+                    !rec.requiredItems ||
+                    rec.requiredItems.every(
+                      (req) => (save.inventory[req.itemId] ?? 0) >= req.count
+                    );
+                  const canCraft = !locked && hasGold && hasMats && hasReqItems;
 
                   return (
                     <div
                       key={rec.id}
-                      className="pixel-slot p-3.5 flex flex-col justify-between gap-3"
+                      className={`pixel-slot p-3.5 flex flex-col justify-between gap-3 ${
+                        isExclusive ? 'border-purple-400/70 bg-[#171224]' : ''
+                      }`}
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-11 h-11 bg-[#1b1f2b] border border-[#2e3446] flex items-center justify-center shrink-0">
@@ -2353,10 +2678,17 @@ export const TownView: React.FC<TownViewProps> = ({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <span className={`font-bold text-sm ${RARITY_COLOR[item.rarity]}`}>
-                              {item.name}
-                            </span>
-                            <span className="font-num text-xs text-slate-400">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className={`font-bold text-sm truncate ${RARITY_COLOR[item.rarity]}`}>
+                                {item.name}
+                              </span>
+                              {isExclusive && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-purple-900/90 border border-purple-400/70 text-purple-200 shrink-0">
+                                  鍛冶限定·100F
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-num text-xs text-slate-400 shrink-0">
                               所持 {save.inventory[item.id] ?? 0}
                             </span>
                           </div>
@@ -2371,53 +2703,136 @@ export const TownView: React.FC<TownViewProps> = ({
                       </div>
 
                       <div className="pt-2 border-t border-[#232836] space-y-2">
-                        <div className="flex flex-wrap items-center gap-3 text-xs font-num">
+                        {rec.requiredItems && rec.requiredItems.length > 0 && (
+                          <div className="bg-[#120e1c] border border-purple-500/35 px-2.5 py-1.5 space-y-1">
+                            <div className="text-[10px] font-bold text-purple-300">
+                              核となる必要装備（消費）
+                            </div>
+                            {rec.requiredItems.map((req) => {
+                              const reqItem = ITEMS[req.itemId];
+                              if (!reqItem) return null;
+                              const owned = save.inventory[req.itemId] ?? 0;
+                              const ok = owned >= req.count;
+                              const isEquipped = save.pouch.includes(req.itemId);
+                              return (
+                                <div
+                                  key={req.itemId}
+                                  className="flex items-center justify-between gap-2 text-xs"
+                                >
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <PixelSprite id={reqItem.spriteId} size={18} />
+                                    <span
+                                      className={`truncate font-medium ${
+                                        ok ? 'text-amber-200' : 'text-red-300'
+                                      }`}
+                                    >
+                                      {reqItem.name}
+                                    </span>
+                                    {isEquipped && ok && (
+                                      <span className="text-[10px] text-slate-400 shrink-0">
+                                        (装備中は自動で解除)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span
+                                    className={`font-num font-bold shrink-0 ${
+                                      ok ? 'text-emerald-300' : 'text-red-400'
+                                    }`}
+                                  >
+                                    {owned}/{req.count}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-num">
                           <span className={hasGold ? 'text-amber-300' : 'text-red-400'}>
-                            {rec.goldCost}G
+                            {rec.goldCost.toLocaleString()}G
                           </span>
                           {rec.materials.iron_ore ? (
                             <span
                               className={
-                                save.materials.iron_ore >= rec.materials.iron_ore
+                                (save.materials.iron_ore ?? 0) >= rec.materials.iron_ore
                                   ? 'text-slate-200'
                                   : 'text-red-400'
                               }
                             >
-                              鉄鉱石 {save.materials.iron_ore}/{rec.materials.iron_ore}
+                              鉄鉱石 {save.materials.iron_ore ?? 0}/{rec.materials.iron_ore}
                             </span>
                           ) : null}
                           {rec.materials.magic_stone ? (
                             <span
                               className={
-                                save.materials.magic_stone >= rec.materials.magic_stone
+                                (save.materials.magic_stone ?? 0) >= rec.materials.magic_stone
                                   ? 'text-sky-300'
                                   : 'text-red-400'
                               }
                             >
-                              魔石 {save.materials.magic_stone}/{rec.materials.magic_stone}
+                              魔石 {save.materials.magic_stone ?? 0}/{rec.materials.magic_stone}
                             </span>
                           ) : null}
                           {rec.materials.ancient_scroll ? (
                             <span
                               className={
-                                save.materials.ancient_scroll >= rec.materials.ancient_scroll
+                                (save.materials.ancient_scroll ?? 0) >= rec.materials.ancient_scroll
                                   ? 'text-amber-200'
                                   : 'text-red-400'
                               }
                             >
-                              古文書 {save.materials.ancient_scroll}/{rec.materials.ancient_scroll}
+                              古文書 {save.materials.ancient_scroll ?? 0}/{rec.materials.ancient_scroll}
                             </span>
                           ) : null}
                         </div>
+
+                        {ENDLESS_RARE_PART_IDS.some((pid) => (rec.materials[pid] ?? 0) > 0) && (
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-num bg-[#120e1c] border border-purple-500/25 px-2.5 py-1.5">
+                            {ENDLESS_RARE_PART_IDS.map((pid) => {
+                              const need = rec.materials[pid] ?? 0;
+                              if (!need) return null;
+                              const owned = save.materials[pid] ?? 0;
+                              const ok = owned >= need;
+                              return (
+                                <span
+                                  key={pid}
+                                  className={`inline-flex items-center gap-1 ${
+                                    ok ? 'text-purple-200' : 'text-red-400'
+                                  }`}
+                                  title={`${MATERIAL_INFO[pid].name}（無限回廊の全敵から超絶低確率でドロップ）`}
+                                >
+                                  <PixelSprite id={MATERIAL_INFO[pid].spriteId} size={15} />
+                                  <span>
+                                    {MATERIAL_INFO[pid].name} {owned}/{need}
+                                  </span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
 
                         <div className="flex justify-end">
                           <button
                             type="button"
                             onClick={() => onCraftRecipe(rec.id)}
                             disabled={!canCraft}
-                            className="px-4 py-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-[#262b38] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
+                            className={`px-4 py-1.5 text-xs font-bold disabled:bg-[#262b38] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap ${
+                              isExclusive
+                                ? 'bg-purple-500 hover:bg-purple-400 text-white'
+                                : 'bg-amber-500 hover:bg-amber-400 text-slate-950'
+                            }`}
                           >
-                            {locked ? `ステージ${rec.requiredStageCleared}踏破で解放` : '鍛造する'}
+                            {endlessLocked
+                              ? `無限回廊${rec.requiredEndlessFloor}F突破で解放`
+                              : stageLocked
+                                ? `ステージ${rec.requiredStageCleared}踏破で解放`
+                                : !hasReqItems
+                                  ? '必要最強装備が不足'
+                                  : !hasMats
+                                    ? '素材・限定パーツ不足'
+                                    : !hasGold
+                                      ? 'ゴールド不足'
+                                      : '鍛造する'}
                           </button>
                         </div>
                       </div>
@@ -2433,10 +2848,41 @@ export const TownView: React.FC<TownViewProps> = ({
                 .map(([id, qty]) => ({ item: ITEMS[id], qty }))
                 .filter((e) => Boolean(e.item));
 
+              const equippedIds = Array.from(
+                new Set(save.pouch.filter((id): id is string => Boolean(id && ITEMS[id])))
+              );
+              const pouchUpgradableIds = equippedIds.filter(
+                (id) => ((save.itemRefineLevels ?? {})[id] ?? 0) < MAX_ITEM_REFINE
+              );
+              const anyPouchStepAffordable = pouchUpgradableIds.some((id) => {
+                const lv = (save.itemRefineLevels ?? {})[id] ?? 0;
+                const c = getItemRefineCost(id, lv);
+                return (
+                  save.gold >= c.gold &&
+                  save.materials.iron_ore >= c.iron &&
+                  save.materials.magic_stone >= c.stone &&
+                  save.materials.ancient_scroll >= c.scroll
+                );
+              });
+
               return (
                 <div className="space-y-3">
-                  <div className="bg-[#12151d] border border-[#2b3040] px-3.5 py-2.5 text-xs text-slate-300 leading-relaxed">
-                    所持中のアイテムを最大 <span className="font-num text-emerald-300 font-bold">+{MAX_ITEM_REFINE}</span> まで精錬し、1段階ごとに装備性能・発動威力を <span className="font-num text-amber-300 font-bold">+15%</span> 底上げします（復活アイテムは回復HP+7%/段。精錬段階は今周回中有効）。
+                  <div className="bg-[#12151d] border border-[#2b3040] p-3.5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs text-slate-300 leading-relaxed">
+                      所持中のアイテムを最大 <span className="font-num text-emerald-300 font-bold">+{MAX_ITEM_REFINE}</span> まで精錬し、1段階ごとに装備性能・発動威力を <span className="font-num text-amber-300 font-bold">+15%</span> 底上げします（復活アイテムは回復HP+7%/段。精錬段階は今周回中有効）。
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onBulkRefinePouch}
+                      disabled={pouchUpgradableIds.length === 0 || !anyPouchStepAffordable}
+                      className="px-3.5 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-500 text-slate-950 disabled:bg-[#262b38] disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      {equippedIds.length === 0
+                        ? '持ち込み装備なし'
+                        : pouchUpgradableIds.length === 0
+                          ? '持ち込み装備すべて+5済'
+                          : `持ち込み装備をまとめて+5精錬 (${pouchUpgradableIds.length}種)`}
+                    </button>
                   </div>
 
                   {ownedList.length === 0 ? (
@@ -2455,6 +2901,15 @@ export const TownView: React.FC<TownViewProps> = ({
                           save.materials.iron_ore >= cost.iron &&
                           save.materials.magic_stone >= cost.stone &&
                           save.materials.ancient_scroll >= cost.scroll;
+
+                        const maxCost = getItemRefineRangeCost(item.id, lv, MAX_ITEM_REFINE);
+                        const showMaxBatch = !isMax && maxCost.steps > 1;
+                        const canRefineMax =
+                          showMaxBatch &&
+                          save.gold >= maxCost.gold &&
+                          save.materials.iron_ore >= maxCost.iron &&
+                          save.materials.magic_stone >= maxCost.stone &&
+                          save.materials.ancient_scroll >= maxCost.scroll;
 
                         return (
                           <div
@@ -2492,6 +2947,7 @@ export const TownView: React.FC<TownViewProps> = ({
                             ) : (
                               <div className="pt-2 border-t border-[#232836] space-y-2">
                                 <div className="flex flex-wrap items-center gap-3 text-xs font-num">
+                                  <span className="text-[11px] text-slate-400">+{lv + 1}:</span>
                                   <span className={save.gold >= cost.gold ? 'text-amber-300' : 'text-red-400'}>
                                     {cost.gold}G
                                   </span>
@@ -2509,7 +2965,38 @@ export const TownView: React.FC<TownViewProps> = ({
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex justify-end">
+                                {showMaxBatch && (
+                                  <div className="flex flex-wrap items-center gap-2.5 text-[11px] font-num bg-[#10141f] border border-[#232a3b] px-2.5 py-1.5">
+                                    <span className="text-amber-200 font-bold">+{MAX_ITEM_REFINE}一括計:</span>
+                                    <span className={save.gold >= maxCost.gold ? 'text-amber-300' : 'text-red-400'}>
+                                      {maxCost.gold.toLocaleString()}G
+                                    </span>
+                                    <span className={save.materials.iron_ore >= maxCost.iron ? 'text-slate-200' : 'text-red-400'}>
+                                      鉄{maxCost.iron}
+                                    </span>
+                                    {maxCost.stone > 0 && (
+                                      <span className={save.materials.magic_stone >= maxCost.stone ? 'text-sky-300' : 'text-red-400'}>
+                                        魔石{maxCost.stone}
+                                      </span>
+                                    )}
+                                    {maxCost.scroll > 0 && (
+                                      <span className={save.materials.ancient_scroll >= maxCost.scroll ? 'text-amber-200' : 'text-red-400'}>
+                                        古文書{maxCost.scroll}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  {showMaxBatch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onRefineItem(item.id, true)}
+                                      disabled={!canRefineMax}
+                                      className="px-3 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-500 text-slate-950 disabled:bg-[#262b38] disabled:text-slate-500 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+                                    >
+                                      +{lv}→+{MAX_ITEM_REFINE} 一括精錬
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => onRefineItem(item.id)}
@@ -3266,7 +3753,7 @@ export const TownView: React.FC<TownViewProps> = ({
                     無限深淵チャレンジ（第{ENDLESS_BENCHMARK_LOOP}周目基準 · 固定倍率 {endlessStatMult}x · 最高記録: {save.bestEndlessFloor ?? 0}F）
                   </div>
                   <div className="text-[11px] text-slate-300 leading-relaxed">
-                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは8%で最強装備4種のいずれかがドロップします（敗北・撤退でも持ち帰り可能）。
+                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から超絶低確率で鍛冶限定パーツ3種（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。<span className="text-amber-300 font-bold">100F突破で「裏実績」「鍛冶屋限定装備」「深淵超越スキルツリー（32x/64x）」が解放！</span>
                   </div>
                 </div>
               ) : effectiveDive.isPractice ? (
@@ -3295,11 +3782,11 @@ export const TownView: React.FC<TownViewProps> = ({
                       </div>
                       {selectedStage.isBossRush ? (
                         <div className="text-[11px] font-bold text-amber-300 pt-0.5">
-                          確定踏破報酬: 最強装備4種（ジェネシス・イージス・覇王冠・アンブロシア）を1つずつ獲得
+                          超レア踏破枠: クリア時 2% で最強装備4種のいずれか1つがドロップ（確定ドロップなし）
                         </div>
                       ) : selectedStage.isSecret ? (
                         <div className="text-[11px] font-bold text-purple-300 pt-0.5">
-                          裏ダンジョン踏破枠: クリア時 5% で最強装備4種のいずれか1つがドロップ
+                          裏ダンジョン超レア枠: クリア時 0.5% で最強装備4種のいずれか1つがドロップ
                         </div>
                       ) : null}
                     </div>

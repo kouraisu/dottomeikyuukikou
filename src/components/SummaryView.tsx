@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Award, Play, Repeat, RotateCcw, Sparkles, Unlock } from 'lucide-react';
 import {
+  BASE_MATERIAL_IDS,
   ENDLESS_BENCHMARK_LOOP,
+  ENDLESS_RARE_PART_IDS,
   FeatureUnlockDef,
   getLoopEnemyStatMult,
   getMaxStageForLoop,
@@ -18,6 +20,7 @@ interface SummaryViewProps {
   newlyUnlockedAchievements?: AchievementDef[];
   allAchievementsCompleted?: boolean;
   endlessJustUnlocked?: boolean;
+  trueEndgameJustUnlocked?: boolean;
   canReincarnate?: boolean;
   canAutoRepeat?: boolean;
   autoRepeatEnabled?: boolean;
@@ -42,6 +45,7 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
   newlyUnlockedAchievements,
   allAchievementsCompleted,
   endlessJustUnlocked,
+  trueEndgameJustUnlocked,
   canReincarnate,
   canAutoRepeat,
   autoRepeatEnabled,
@@ -164,6 +168,20 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
           </div>
         )}
 
+        {/* True Endgame (Endless 100F+) Unlocked Banner */}
+        {trueEndgameJustUnlocked && (
+          <div className="bg-[#1c102b] border-2 border-amber-400 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-amber-300 font-pixel text-base">
+              <Sparkles className="w-4 h-4 shrink-0 text-purple-300" />
+              <span>真のエンドコンテンツ解放：無限回廊 100F 突破！</span>
+            </div>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              深淵の100階を突破しました！①永続強化「裏実績（全6種）」②鍛冶屋限定の究極装備4種
+              ③大量SPを消費して圧倒的な力と「32倍速(10SP) / 64倍速(20SP)」を解放できる新スキルツリー「深淵超越の道」が解禁されました！
+            </p>
+          </div>
+        )}
+
         {/* Reincarnation Unlocked Banner */}
         {!result.isPracticeRun && result.victory && canReincarnate && onAdvanceLoop && (
           <div className="bg-[#18162a] border-2 border-amber-400/85 p-4 space-y-3">
@@ -254,7 +272,7 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
               <div className="bg-[#23192d] border border-purple-400/75 px-3.5 py-2.5 text-xs text-purple-100 leading-relaxed">
                 <span className="font-bold text-amber-300">全実績制覇達成！</span>{' '}
                 究極ステージ「<span className="text-rose-300 font-bold">【極】終焉の強化ボスラッシュ</span>」が開放されました！
-                強化ボスラッシュ踏破で最強装備4種（ジェネシス・イージス・覇王冠・アンブロシア）を確定で1つずつ入手できます（裏ダンジョン踏破時にも5%でいずれか1つ出現）。
+                強化ボスラッシュ踏破時に2%の超低確率で最強装備4種（ジェネシス・イージス・覇王冠・アンブロシア）のいずれか1つが出現します（確定ドロップなし・裏ダンジョン踏破時0.5%／無限回廊15F以降ボス0.8%でも出現）。
               </div>
             )}
           </div>
@@ -470,18 +488,41 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
           <h3 className="font-pixel text-sm text-slate-200">持ち帰った素材・戦利品</h3>
           <div className="pixel-slot p-4 space-y-3">
             <div className="flex flex-wrap items-center gap-6">
-              {(['iron_ore', 'magic_stone', 'ancient_scroll'] as const).map((mKey) => (
+              {BASE_MATERIAL_IDS.map((mKey) => (
                 <div key={mKey} className="flex items-center gap-2">
                   <PixelSprite id={MATERIAL_INFO[mKey].spriteId} size={22} />
                   <span className="text-xs text-slate-300">
                     {MATERIAL_INFO[mKey].name}
                   </span>
                   <span className="font-num text-sm font-bold text-sky-300">
-                    +{result.materialsEarned[mKey]}
+                    +{result.materialsEarned[mKey] ?? 0}
                   </span>
                 </div>
               ))}
             </div>
+
+            {(result.isEndless ||
+              ENDLESS_RARE_PART_IDS.some((pKey) => (result.materialsEarned[pKey] ?? 0) > 0)) && (
+              <div className="pt-2.5 border-t border-[#232836] flex flex-wrap items-center gap-5">
+                {ENDLESS_RARE_PART_IDS.map((pKey) => (
+                  <div key={pKey} className="flex items-center gap-2">
+                    <PixelSprite id={MATERIAL_INFO[pKey].spriteId} size={20} />
+                    <span className="text-xs text-purple-200">
+                      {MATERIAL_INFO[pKey].name}
+                    </span>
+                    <span
+                      className={`font-num text-sm font-bold ${
+                        (result.materialsEarned[pKey] ?? 0) > 0
+                          ? 'text-amber-300'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      +{result.materialsEarned[pKey] ?? 0}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {result.lootedItems.length > 0 && (
               <div className="pt-3 border-t border-[#232836]">

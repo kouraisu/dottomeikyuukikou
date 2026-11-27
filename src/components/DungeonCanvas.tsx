@@ -5,6 +5,7 @@ import {
   BOSS_RUSH_BOSS_ORDER,
   DUNGEON_EVENTS,
   ENDLESS_BENCHMARK_LOOP,
+  ENDLESS_RARE_PART_IDS,
   ENEMIES,
   getAchievementBonuses,
   getActiveSynergies,
@@ -585,7 +586,9 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       if (spd === 2) return 1750;
       if (spd === 4) return 1150;
       if (spd === 8) return 700;
-      return 420;
+      if (spd <= 16) return 420;
+      if (spd === 32) return 250;
+      return 140;
     };
     let logCounter = 1;
     let enemyUidCounter = 1;
@@ -604,11 +607,15 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       iron_ore: 0,
       magic_stone: 0,
       ancient_scroll: 0,
+      abyss_shard: 0,
+      void_gear: 0,
+      chaos_prism: 0,
     };
     const lootedItems: string[] = [];
     const encounteredEnemyIds = new Set<string>();
     const encounteredEventIds = new Set<string>();
     let enemiesDefeated = 0;
+    let bossesDefeated = 0;
     const highlights: ExpeditionHighlight[] = [];
     let highlightIdCounter = 1;
     let closeCallRecordedThisFloor = false;
@@ -895,6 +902,41 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       return dealt;
     };
 
+    const tryRollEndlessRarePart = (e: SimEnemy) => {
+      if (!stage.isEndless || isPracticeRun) return;
+      const baseRate = e.isBoss
+        ? currentFloor >= 100
+          ? 0.007
+          : currentFloor >= 50
+            ? 0.004
+            : 0.002
+        : currentFloor >= 100
+          ? 0.0003
+          : currentFloor >= 50
+            ? 0.0002
+            : 0.0001;
+      const dropScale = Math.min(1.5, 1 + dropBonusPct / 400);
+      if (Math.random() >= baseRate * dropScale) return;
+
+      const partId =
+        ENDLESS_RARE_PART_IDS[Math.floor(Math.random() * ENDLESS_RARE_PART_IDS.length)];
+      const info = MATERIAL_INFO[partId];
+      materialsEarned[partId] += 1;
+      sound.victory();
+      spawnParticles(e.x + 16, e.y + 12, info.color, 18, 1.5);
+      addFloatText(e.x + 6, e.y - 20, `★${info.name}!`, info.color);
+      pushLog(
+        `【超絶レアドロップ】無限回廊 ${currentFloor}Fで鍛冶パーツ「${info.name}」を獲得！！`,
+        'loot'
+      );
+      pushHighlight(
+        'RARE_LOOT',
+        `幻の鍛冶パーツ「${info.name}」獲得！`,
+        `無限回廊 ${currentFloor}F（${e.name}撃破）で超絶低確率パーツを引き当てた！`,
+        info.spriteId
+      );
+    };
+
     const handleEnemyDefeated = (e: SimEnemy, killerId?: string) => {
       if (!e.alive) return;
       e.alive = false;
@@ -911,6 +953,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         addFloatText(e.x + 10, e.y - 12, `+${g}G`, '#facc15');
       }
       awardMaterial(e.materialChance);
+      tryRollEndlessRarePart(e);
 
       if (e.enemyDefId === 'mimic' && !isPracticeRun) {
         const picked = rollDropItem({
@@ -927,6 +970,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       }
 
       if (e.isBoss) {
+        bossesDefeated += 1;
         pushHighlight(
           'BOSS_KILL',
           `ボス「${e.name}」撃破！`,
@@ -938,20 +982,20 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
             const crestGain = Math.max(3, Math.floor(currentFloor / 5) + ENDLESS_BENCHMARK_LOOP);
             endlessCrestsEarned += crestGain;
             pushLog(`【無限ボス撃破】踏破の証 +${crestGain} を獲得！`, 'loot');
-            if (currentFloor >= 15 && Math.random() < 0.08) {
+            if (currentFloor >= 15 && Math.random() < 0.008) {
               const ultId =
                 ULTIMATE_ITEM_IDS[Math.floor(Math.random() * ULTIMATE_ITEM_IDS.length)];
               const ultItem = ITEMS[ultId];
               if (ultItem) {
                 lootedItems.push(ultId);
                 pushLog(
-                  `【無限深淵レア枠(8%)】最強装備「${ultItem.name}」を獲得！！`,
+                  `【無限深淵超レア枠(0.8%)】最強装備「${ultItem.name}」を獲得！！`,
                   'loot'
                 );
                 pushHighlight(
                   'RARE_LOOT',
                   `最強装備「${ultItem.name}」獲得！`,
-                  `無限回廊 ${currentFloor}F ボス討伐時に究極装備を引き当てた！`,
+                  `無限回廊 ${currentFloor}F ボス討伐時に0.8%の超低確率を引き当てた！`,
                   ultItem.spriteId
                 );
               }
@@ -1643,33 +1687,38 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           );
 
           if (stage.isBossRush) {
-            ULTIMATE_ITEM_IDS.forEach((ultId) => {
-              lootedItems.push(ultId);
-            });
-            pushLog(
-              '【ボスラッシュ制覇報酬】最強装備4種（ジェネシス・イージス・覇王冠・アンブロシア）を確定で1つずつ獲得！',
-              'loot'
-            );
-            pushHighlight(
-              'RARE_LOOT',
-              '最強装備4種を獲得！',
-              '強化ボスラッシュ制覇報酬として最強装備・霊薬4種を1つずつ獲得',
-              'item_god_blade'
-            );
-          } else if (stage.isSecret && Math.random() < 0.05) {
+            if (Math.random() < 0.02) {
+              const ultId =
+                ULTIMATE_ITEM_IDS[Math.floor(Math.random() * ULTIMATE_ITEM_IDS.length)];
+              const ultItem = ITEMS[ultId];
+              if (ultItem) {
+                lootedItems.push(ultId);
+                pushLog(
+                  `【ボスラッシュ制覇超レア枠(2%)】最強装備「${ultItem.name}」を獲得！！`,
+                  'loot'
+                );
+                pushHighlight(
+                  'RARE_LOOT',
+                  `最強装備「${ultItem.name}」獲得！`,
+                  '強化ボスラッシュ制覇時に2%の超低確率を引き当てた！',
+                  ultItem.spriteId
+                );
+              }
+            }
+          } else if (stage.isSecret && Math.random() < 0.005) {
             const ultId =
               ULTIMATE_ITEM_IDS[Math.floor(Math.random() * ULTIMATE_ITEM_IDS.length)];
             const ultItem = ITEMS[ultId];
             if (ultItem) {
               lootedItems.push(ultId);
               pushLog(
-                `【裏ダンジョン踏破レア枠(5%)】最強装備「${ultItem.name}」を獲得！！`,
+                `【裏ダンジョン踏破超レア枠(0.5%)】最強装備「${ultItem.name}」を獲得！！`,
                 'loot'
               );
               pushHighlight(
                 'RARE_LOOT',
                 `最強装備「${ultItem.name}」獲得！`,
-                `${stage.name}踏破時に5%の確率で究極装備を引き当てた！`,
+                `${stage.name}踏破時に0.5%の超低確率を引き当てた！`,
                 ultItem.spriteId
               );
             }
@@ -1711,6 +1760,11 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
       const partyContributions = party.map((u) => ({ ...contribMap[u.id] }));
       const totalDamageDealt = partyContributions.reduce((s, c) => s + c.damageDealt, 0);
+      const totalHealingDone = partyContributions.reduce((s, c) => s + c.healingDone, 0);
+      const consumableActivations = carriedSlots.reduce(
+        (sum, s) => sum + (s.isConsumable ? Math.max(0, s.maxUses - s.remainingUses) : 0),
+        0
+      );
 
       emitHud();
       finishTimer = setTimeout(() => {
@@ -1725,7 +1779,14 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           goldEarned,
           crestsEarned,
           materialsEarned: isPracticeRun
-            ? { iron_ore: 0, magic_stone: materialsEarned.magic_stone, ancient_scroll: 0 }
+            ? {
+                iron_ore: 0,
+                magic_stone: materialsEarned.magic_stone,
+                ancient_scroll: 0,
+                abyss_shard: 0,
+                void_gear: 0,
+                chaos_prism: 0,
+              }
             : { ...materialsEarned },
           lootedItems: isPracticeRun ? [] : [...lootedItems],
           consumedItems,
@@ -1752,6 +1813,9 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           effectiveLoopCount,
           partyContributions,
           totalDamageDealt,
+          totalHealingDone,
+          bossesDefeated,
+          consumableActivations,
         });
       }, 650);
     };
@@ -1765,7 +1829,14 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         roomLabel: encounter.label,
         goldEarned,
         materialsEarned: isPracticeRun
-          ? { iron_ore: 0, magic_stone: materialsEarned.magic_stone, ancient_scroll: 0 }
+          ? {
+              iron_ore: 0,
+              magic_stone: materialsEarned.magic_stone,
+              ancient_scroll: 0,
+              abyss_shard: 0,
+              void_gear: 0,
+              chaos_prism: 0,
+            }
           : { ...materialsEarned },
         lootedItems: isPracticeRun ? [] : [...lootedItems],
         enemiesDefeated,
@@ -2345,7 +2416,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
       if (!pausedRef.current && !isWaitingManualChoice && phase !== 'FINISHED') {
         if (phase === 'BOSS_INTRO') {
-          animClock += rawDt * Math.min(2.5, speedRef.current);
+          animClock += rawDt * Math.min(3.5, speedRef.current);
           bossIntroElapsed += rawDt;
 
           for (let i = particles.length - 1; i >= 0; i--) {
