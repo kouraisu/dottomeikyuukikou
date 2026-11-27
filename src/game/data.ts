@@ -2422,7 +2422,7 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'risky',
         label: '強引にこじ開けて奥まで漁る',
-        hint: '高確率で装備アイテムを発見 · ただし罠の危険あり',
+        hint: '高確率で装備アイテム＆希少品チャンス · ただし罠の危険あり',
         outcome: 'RISKY_CHEST',
       },
       {
@@ -2442,13 +2442,13 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'drink',
         label: '泉の水を飲んで休息する',
-        hint: 'パーティ全員のHPを45%回復',
+        hint: 'パーティ全員のHPを60%回復（倒れた仲間も35%で蘇生）',
         outcome: 'HEAL_SPRING',
       },
       {
         id: 'dive',
         label: '水底の輝きを拾いに行く',
-        hint: 'ゴールドと魔石を獲得（低確率で冷気に凍える）',
+        hint: 'まとまったゴールドと魔石を獲得（低確率で冷気に凍える）',
         outcome: 'DIVE_SPRING',
       },
     ],
@@ -2462,13 +2462,13 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'sacrifice',
         label: '体力を捧げて力を借りる',
-        hint: '勇者HPを15%消費 · 今回の攻撃力+20%＆魔石+1',
+        hint: '勇者HPを15%消費 · 今回攻撃+30%・防御+5＆魔石+1',
         outcome: 'ALTAR_SACRIFICE',
       },
       {
         id: 'pray',
         label: '静かに祈りを捧げる',
-        hint: 'HPを少し回復し、古文書を1つ入手',
+        hint: '全員HP20%回復し、古文書を1〜2個入手',
         outcome: 'ALTAR_PRAY',
       },
     ],
@@ -2482,14 +2482,14 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'buy_heal',
         label: '特製薬を分けてもらう (25G)',
-        hint: '25Gを支払い、パーティ全員のHPを70回復',
+        hint: '25Gを支払い、パーティ全員のHPを90回復＆攻撃+10%',
         outcome: 'PEDDLER_HEAL',
         goldCost: 25,
       },
       {
         id: 'buy_mats',
         label: '掘り出し物の素材袋を買う (30G)',
-        hint: '30Gを支払い、素材を2個入手',
+        hint: '30Gを支払い、素材を3個入手',
         outcome: 'PEDDLER_MATS',
         goldCost: 30,
       },
@@ -2505,19 +2505,125 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
     id: 'forked_corridor',
     title: '二手に分かれた迷宮回廊',
     spriteId: 'prop_trap',
-    description: '左右の通路へ道が分かれている。右からは強敵の咆哮が聞こえ、左は静まり返っている。',
+    description: '左右の通路へ道が分かれている。右からは中ボス級の凄まじい咆哮が響き、左は静まり返っている。',
     options: [
       {
         id: 'right_elite',
-        label: '右の強敵ルートへ突入する',
-        hint: '強敵と戦闘になるが、勝利時の報酬が豪華',
+        label: '右の強敵ルート（中ボス戦）へ突入する',
+        hint: '中ボス級の強敵と戦闘！撃破で大量G・素材・高確率で装備ドロップ＆攻撃+12%',
         outcome: 'FORK_ELITE',
       },
       {
         id: 'left_rest',
         label: '左の安全な抜け道を選ぶ',
-        hint: '戦闘を避け、小休止でHP25%回復',
+        hint: '戦闘を避け、小休止でHP30%回復',
         outcome: 'FORK_REST',
+      },
+    ],
+  },
+  {
+    id: 'ancient_armory',
+    title: '封印された古代武具庫',
+    spriteId: 'item_excalibur',
+    description: '重厚な鉄扉の奥に、かつての騎士団が遺した武器や鍛冶資材が整然と並んでいる！',
+    options: [
+      {
+        id: 'armory_open',
+        label: '封印を解いて武器を手にする',
+        hint: '今回の攻撃+35%＆確定で装備ドロップ（希少枠UP）· 低確率で結界の反動',
+        outcome: 'ARMORY_WEAPON',
+      },
+      {
+        id: 'armory_salvage',
+        label: '鍛冶資材を根こそぎ回収する',
+        hint: '安全に鉄鉱石+2・魔石+2・古文書+1を獲得',
+        outcome: 'ARMORY_SALVAGE',
+      },
+    ],
+  },
+  {
+    id: 'mystic_fountain_wish',
+    title: '星降る願いの聖泉',
+    spriteId: 'bless_bond',
+    description: '七色にきらめく神秘の泉。「旅人よ、一つだけ大きな願いを叶えてあげよう」と声が響く。',
+    options: [
+      {
+        id: 'wish_power',
+        label: '圧倒的な闘志と力を願う',
+        hint: '今回攻撃+45%・防御+8 ＆ 連携奥義ゲージ100%満タン！',
+        outcome: 'WISH_POWER',
+      },
+      {
+        id: 'wish_fortune',
+        label: '黄金と秘宝の雨を願う',
+        hint: '特大ゴールド獲得 ＆ 確定で装備アイテムを発見！',
+        outcome: 'WISH_FORTUNE',
+      },
+      {
+        id: 'wish_miracle',
+        label: '仲間全員の完全復活を願う',
+        hint: '倒れた仲間を全員蘇生し、パーティ全員のHPを100%全回復！',
+        outcome: 'WISH_MIRACLE',
+      },
+    ],
+  },
+  {
+    id: 'secret_vault',
+    title: '王家の隠し宝物庫',
+    spriteId: 'item_god_aegis',
+    description: '崩れた壁の向こうに、眩い金貨と宝具が山積みにされた隠し部屋を見つけた！',
+    options: [
+      {
+        id: 'vault_plunder',
+        label: '奥の黄金箱まで徹底的に漁る',
+        hint: '特大G＋素材2種＋装備高確率！（30%で中ボス級ミミックが襲来）',
+        outcome: 'VAULT_PLUNDER',
+      },
+      {
+        id: 'vault_safe',
+        label: '手前の金貨袋だけ頂戴する',
+        hint: '安全にまとまったGと鉄鉱石+2を入手',
+        outcome: 'VAULT_SAFE',
+      },
+    ],
+  },
+  {
+    id: 'dragon_shrine',
+    title: '古竜の試練祭壇',
+    spriteId: 'item_dragon_heart',
+    description: '竜の彫刻が鎮座する荘厳な祭壇。試練を受ければ強大な力が目覚め、戦えば大いなる報酬が得られるという。',
+    options: [
+      {
+        id: 'dragon_trial',
+        label: '古竜の試練（中ボス戦）に挑む！',
+        hint: '中ボス級強敵と激突！勝利で希少装備チャンス・大量G・今回攻撃+25%',
+        outcome: 'TRIAL_MIDBOSS',
+      },
+      {
+        id: 'dragon_bless',
+        label: '竜の鱗に触れて加護を授かる',
+        hint: '全員HP40%回復・今回防御+10・古文書+1を獲得',
+        outcome: 'DRAGON_BLESS',
+      },
+    ],
+  },
+  {
+    id: 'crimson_pact',
+    title: '紅蓮の契約石',
+    spriteId: 'bless_blood',
+    description: '脈動する巨大な紅蓮の水晶。「血を捧げれば爆発的な破壊力を、砕けば尽きぬ生命力を与えよう」',
+    options: [
+      {
+        id: 'pact_berserk',
+        label: 'HP30%を捧げて狂戦士の力を得る',
+        hint: '勇者HP30%消費 · 今回攻撃+60%＆古文書+2！',
+        outcome: 'PACT_BERSERK',
+      },
+      {
+        id: 'pact_vitality',
+        label: '血石を砕いて生命力を吸収する',
+        hint: '今回全員の最大HP+20%＆全員HP全快！',
+        outcome: 'PACT_VITALITY',
       },
     ],
   },
@@ -2531,7 +2637,7 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'open_mimic',
         label: '警戒しつつ強引に蓋をこじ開ける',
-        hint: '確率で豪華財宝 · 外れると「貪欲なるミミック」と戦闘（撃破で豪華報酬）',
+        hint: '確率で豪華財宝 · 外れると中ボス級「貪欲なるミミック」と戦闘（撃破で豪華報酬）',
         outcome: 'MIMIC_CHEST',
       },
       {
@@ -2552,14 +2658,14 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'brew',
         label: '特製秘薬の調合を頼む (40G)',
-        hint: '40G支払い、今回探索中の攻撃+25%＆HP50%回復',
+        hint: '40G支払い、今回探索中の攻撃+35%＆HP60%回復',
         outcome: 'ALCHEMIST_BREW',
         goldCost: 40,
       },
       {
         id: 'sell',
         label: '手持ちの余剰品を鑑定してもらう',
-        hint: 'まとまったゴールドと魔石・古文書を少し獲得',
+        hint: 'まとまったゴールドと魔石・古文書を入手',
         outcome: 'ALCHEMIST_SELL',
       },
       {
@@ -2580,15 +2686,36 @@ export const DUNGEON_EVENTS: DungeonEventDef[] = [
       {
         id: 'gamble_high',
         label: 'HP25%を賭けて運命の天秤を引く',
-        hint: '高確率で大吉（大量G＋素材2〜3個＋攻撃+25%）、外れると追加ダメ',
+        hint: '高確率で大吉（特大G＋素材3種＋攻撃+40%＋装備抽選）、外れると追加ダメ',
         outcome: 'GAMBLE_HIGH',
       },
       {
         id: 'gamble_safe',
         label: '20Gを供えて無事を祈る',
-        hint: '20G支払い、パーティ全員HP35%回復',
+        hint: '20G支払い、パーティ全員HP45%回復',
         outcome: 'GAMBLE_SAFE',
         goldCost: 20,
+      },
+    ],
+  },
+  {
+    id: 'time_rift',
+    title: '時空の歪み・祝福の裂け目',
+    spriteId: 'item_infinity_crown',
+    minLoop: 2,
+    description: '空間がまばゆく歪み、時を巻き戻す光と先へ導く風の双方が溢れ出している！',
+    options: [
+      {
+        id: 'rift_power',
+        label: '時空の魔力を浴びて全力を解放する',
+        hint: '今回攻撃+50%・全消費アイテム残数+1補充・連携ゲージ100%！',
+        outcome: 'RIFT_POWER',
+      },
+      {
+        id: 'rift_warp',
+        label: '空間跳躍で次階層へ飛び、財宝も掠める',
+        hint: '1階層スキップして前進（最深部手前なら大量G・魔石+2・HP回復）！',
+        outcome: 'RIFT_WARP',
       },
     ],
   },
@@ -2632,10 +2759,41 @@ export const INSTANT_EVENTS: InstantEventDef[] = [
     kind: 'STRAY_SLIME',
   },
   {
+    id: 'meteor_blessing',
+    title: '流星の魔力覚醒',
+    spriteId: 'item_sage_orb',
+    kind: 'METEOR_BLESSING',
+  },
+  {
+    id: 'treasure_goblin',
+    title: '黄金を抱えた大ゴブリン',
+    spriteId: 'enemy_goblin',
+    kind: 'TREASURE_GOBLIN',
+  },
+  {
+    id: 'lost_shrine_revive',
+    title: '奇跡の蘇生祭壇',
+    spriteId: 'item_elixir',
+    kind: 'LOST_SHRINE_REVIVE',
+  },
+  {
+    id: 'ancient_supply_cache',
+    title: '伝説の補給物資箱',
+    spriteId: 'item_nectar',
+    kind: 'ANCIENT_SUPPLY_CACHE',
+  },
+  {
     id: 'gem_vein',
     title: 'きらめく魔石鉱脈',
     spriteId: 'prop_gem_vein',
     kind: 'GEM_VEIN',
+    minLoop: 2,
+  },
+  {
+    id: 'chaos_roulette',
+    title: '大いなる混沌のルーレット',
+    spriteId: 'item_clover',
+    kind: 'CHAOS_ROULETTE',
     minLoop: 2,
   },
 ];
@@ -3555,13 +3713,18 @@ export function buildAutoEquipPouch(
 }
 
 export const INSTANT_EVENT_DESCRIPTIONS: Record<string, string> = {
-  gold_pouch: '通路に落ちていた金貨袋からゴールドを拾い上げる突発イベント。',
-  gentle_breeze: '迷宮に吹き込む温かな風で、パーティ全員のHPが25%回復する。',
-  hidden_rack: '忘れられた物資棚から素材や冒険用品を見つけ出す。',
+  gold_pouch: '通路に落ちていた金貨袋からまとまったゴールドを拾い上げる突発イベント。',
+  gentle_breeze: '迷宮に吹き込む温かな風で、パーティ全員のHPが30%回復する。',
+  hidden_rack: '忘れられた物資棚から大量の素材や装備品を見つけ出す。',
   falling_rocks: '天井からの落石罠。盗賊カイトが同行していると回避して金貨を発見する。',
-  blessed_statue: '戦女神の像から加護を授かり、その探索中の攻撃+10%・防御+3を得る。',
-  stray_slime: '黄金に輝くはぐれスライムを一撃で倒し、まとまったゴールドを獲得する。',
-  gem_vein: '2周目以降の壁面に輝く希少鉱脈。魔石とゴールドを採掘できる突発イベント。',
+  blessed_statue: '戦女神の像から強い加護を授かり、その探索中の攻撃+20%・防御+5を得る。',
+  stray_slime: '黄金に輝くはぐれスライムを一撃で倒し、大量のゴールドと魔石を獲得する。',
+  meteor_blessing: '天井の裂け目から降り注ぐ流星光で、攻撃+30%・防御+6・連携100%＆魔石+2を得る大幸運イベント。',
+  treasure_goblin: '財宝を背負った大黄金ゴブリンを捕獲し、大量ゴールド・素材・高確率の装備品を手に入れる！',
+  lost_shrine_revive: '古代の蘇生祭壇が輝き、倒れた仲間を全員75%HPで蘇生＆全員HP50%回復！',
+  ancient_supply_cache: '伝説の補給箱を発見し、持ち込み中の全消費アイテムの使用回数が+1回復＆素材を獲得！',
+  gem_vein: '2周目以降の壁面に輝く希少鉱脈。魔石とゴールドを大量に採掘できる突発イベント。',
+  chaos_roulette: '2周目以降の巨大ランダムルーレット！黄金の嵐・神速狂戦士化・素材大爆発など超大型の運命が発動。',
 };
 
 export const MAX_ITEM_REFINE = 5;

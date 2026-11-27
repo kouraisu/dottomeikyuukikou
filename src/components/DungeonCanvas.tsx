@@ -67,7 +67,7 @@ export interface ExpeditionHudSnapshot {
     positionLabel: string;
   }[];
   carriedSlots: CarriedSlotStatus[];
-  bossInfo: { name: string; hp: number; maxHp: number } | null;
+  bossInfo: { name: string; hp: number; maxHp: number; isMidBoss?: boolean } | null;
   isBossIntro: boolean;
   isBossRush: boolean;
   isEndless?: boolean;
@@ -136,6 +136,8 @@ interface SimEnemy {
   materialChance: number;
   isBoss: boolean;
   isElite: boolean;
+  isMidBoss?: boolean;
+  midBossAtkBonus?: number;
   isBossRushEnhanced: boolean;
   scale: number;
   x: number;
@@ -748,6 +750,36 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       };
     };
 
+    const spawnMidBoss = (
+      enemyId: string,
+      x: number,
+      y: number,
+      floorScale: number,
+      opts?: {
+        prefix?: string;
+        goldMult?: number;
+        midBossAtkBonus?: number;
+      }
+    ): SimEnemy => {
+      const base = spawnEnemy(enemyId, x, y, floorScale);
+      const hp = Math.round(base.hp * 2.65);
+      return {
+        ...base,
+        name: `${opts?.prefix ?? '【中ボス】'}${base.name}`,
+        hp,
+        maxHp: hp,
+        atk: Math.round(base.atk * 1.48),
+        def: Math.round(base.def * 1.35),
+        attackIntervalMs: Math.max(540, Math.round(base.attackIntervalMs * 0.9)),
+        goldDrop: Math.round(base.goldDrop * (opts?.goldMult ?? 2.8)),
+        materialChance: 1.0,
+        isElite: true,
+        isMidBoss: true,
+        midBossAtkBonus: opts?.midBossAtkBonus ?? 12,
+        scale: Math.max(1.68, Math.min(2.15, base.scale * 1.48)),
+      };
+    };
+
     const eligibleEvents = DUNGEON_EVENTS.filter(
       (ev) => (ev.minLoop ?? 1) <= effectiveLoopCount
     );
@@ -787,7 +819,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
       if (rIdx === 1 && (stage.isEndless || floor < stage.floors)) {
         const roll = Math.random();
-        if (roll < 0.48 && eligibleEvents.length > 0) {
+        if (roll < 0.54 && eligibleEvents.length > 0) {
           const ev = eligibleEvents[Math.floor(Math.random() * eligibleEvents.length)];
           return {
             kind: 'EVENT_CHOICE',
@@ -797,7 +829,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
             autoDelayTimer: 550,
             label: `選択イベント · ${ev.title}`,
           };
-        } else if (roll < 0.82 && eligibleInstantEvents.length > 0) {
+        } else if (roll < 0.86 && eligibleInstantEvents.length > 0) {
           const inst =
             eligibleInstantEvents[Math.floor(Math.random() * eligibleInstantEvents.length)];
           return {
@@ -811,8 +843,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
         return {
           kind: 'COMBAT',
-          enemies: [spawnEnemy(stage.eliteId, 345, 174, floor)],
-          label: '強敵出現',
+          enemies: [spawnMidBoss(stage.eliteId, 345, 174, floor, { midBossAtkBonus: 10 })],
+          label: '中ボス強敵出現',
         };
       }
 
@@ -976,6 +1008,33 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         if (picked) {
           lootedItems.push(picked.id);
           pushLog(`ミミック討伐戦利品「${picked.name}」を獲得！`, 'loot');
+        }
+      }
+
+      if (e.isMidBoss && !e.isBoss) {
+        awardMaterial(1.0);
+        if (e.midBossAtkBonus && e.midBossAtkBonus > 0) {
+          runAtkBuffPct += e.midBossAtkBonus;
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, `攻撃+${e.midBossAtkBonus}%`, '#c084fc');
+        }
+        pushHighlight(
+          'BOSS_KILL',
+          `中ボス「${e.name}」撃破！`,
+          `${currentFloor}Fの強敵中ボスを討伐し豪華報酬を獲得！`,
+          e.spriteId
+        );
+        if (!isPracticeRun && Math.random() < 0.78) {
+          const picked = rollDropItem({
+            stageId: stage.id,
+            loopCount: effectiveDropLoop,
+            source: 'BOSS',
+            floor: currentFloor,
+            isBossRush: stage.isBossRush,
+          });
+          if (picked) {
+            lootedItems.push(picked.id);
+            pushLog(`中ボス戦利品「${picked.name}」を獲得！`, 'loot');
+          }
         }
       }
 
@@ -1159,16 +1218,16 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       encounteredEventIds.add(inst.id);
       switch (inst.kind) {
         case 'GOLD_POUCH': {
-          const raw = Math.round((24 + stage.id * 16) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const raw = Math.round((36 + stage.id * 22) * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
           sound.coin();
           if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
-          spawnParticles(345, 175, '#facc15', 10, 1.1);
+          spawnParticles(345, 175, '#facc15', 12, 1.1);
           pushLog(
             isPracticeRun
               ? `【自動イベント】落ちていた金貨袋から ${g}G 拾った（仮潜入·低効率）。`
-              : `【自動イベント】落ちていた金貨袋から ${g}G 拾った！`,
+              : `【自動イベント】落ちていた大きな金貨袋から ${g}G 拾った！`,
             'loot'
           );
           phase = 'ROOM_CLEAR';
@@ -1177,8 +1236,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
         case 'GENTLE_BREEZE': {
           sound.heal();
-          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.25), 'hero'));
-          pushLog(`【自動イベント】癒やしの風が吹き抜け、全員のHPが25%回復した！`, 'heal');
+          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.3), 'hero'));
+          pushLog(`【自動イベント】癒やしの風が吹き抜け、全員のHPが30%回復した！`, 'heal');
           phase = 'ROOM_CLEAR';
           clearWaitTimer = 0;
           break;
@@ -1186,7 +1245,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         case 'HIDDEN_RACK': {
           sound.coin();
           awardMaterial(1.0);
-          if (!isPracticeRun && Math.random() < 0.35) {
+          awardMaterial(0.75);
+          if (!isPracticeRun && Math.random() < 0.6) {
             const picked = rollDropItem({
               stageId: stage.id,
               loopCount: effectiveDropLoop,
@@ -1196,13 +1256,13 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
             });
             if (picked) {
               lootedItems.push(picked.id);
-              pushLog(`【自動イベント】物資棚から「${picked.name}」を見つけた！`, 'loot');
+              pushLog(`【自動イベント】物資棚から「${picked.name}」と素材を見つけた！`, 'loot');
             }
           } else {
             pushLog(
               isPracticeRun
                 ? '【自動イベント】物資棚を調べた（仮潜入のため装備なし）。'
-                : `【自動イベント】物資棚から素材を回収した！`,
+                : `【自動イベント】物資棚からまとまった素材を回収した！`,
               'loot'
             );
           }
@@ -1212,7 +1272,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
         case 'FALLING_ROCKS': {
           if (hasThief) {
-            const raw = 22 + stage.id * 10;
+            const raw = Math.round((32 + stage.id * 16) * (1 + goldBonusPct / 100) * loopRewardMult);
             const g = isPracticeRun ? calcPracticeGold(raw) : raw;
             goldEarned += g;
             sound.coin();
@@ -1244,23 +1304,24 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
         case 'BLESSED_STATUE': {
           sound.heal();
-          runDefBuffFlat += 3;
-          runAtkBuffPct += 10;
-          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#38bdf8', 12, 1.1);
-          addFloatText(heroUnit.x + 8, heroUnit.y - 10, '攻+10% 防+3', '#38bdf8');
-          pushLog(`【自動イベント】戦女神像の加護を受け、攻撃+10%・防御+3を得た！`, 'blessing');
+          runDefBuffFlat += 5;
+          runAtkBuffPct += 20;
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#38bdf8', 14, 1.2);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 10, '攻+20% 防+5', '#38bdf8');
+          pushLog(`【自動イベント】戦女神像の強い加護を受け、攻撃+20%・防御+5を得た！`, 'blessing');
           phase = 'ROOM_CLEAR';
           clearWaitTimer = 0;
           break;
         }
         case 'STRAY_SLIME': {
-          const raw = Math.round((32 + stage.id * 18) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const raw = Math.round((48 + stage.id * 24) * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
           enemiesDefeated += 1;
           sound.hit(true);
           sound.coin();
-          spawnParticles(345, 175, '#facc15', 14, 1.3);
+          awardMaterial(0.65, 'magic_stone');
+          spawnParticles(345, 175, '#facc15', 16, 1.3);
           if (g > 0) addFloatText(340, 152, `+${g}G`, '#facc15');
           pushLog(
             isPracticeRun
@@ -1273,22 +1334,206 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           break;
         }
         case 'GEM_VEIN': {
-          const raw = Math.round((30 + stage.id * 15) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const raw = Math.round((45 + stage.id * 22) * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
           sound.coin();
           awardMaterial(1.0, 'magic_stone');
-          if (!isPracticeRun && Math.random() < 0.45) {
+          awardMaterial(1.0, 'magic_stone');
+          if (!isPracticeRun && Math.random() < 0.5) {
             awardMaterial(1.0, 'magic_stone');
           }
           if (g > 0) addFloatText(340, 155, `+${g}G`, '#38bdf8');
-          spawnParticles(345, 175, '#38bdf8', 12, 1.2);
+          spawnParticles(345, 175, '#38bdf8', 14, 1.2);
           pushLog(
             isPracticeRun
               ? `【自動イベント】魔石鉱脈から ${g}G を掘り出した（仮潜入·低効率）。`
-              : `【自動イベント】壁面の魔石鉱脈を発見し、魔石と ${g}G を採掘した！`,
+              : `【自動イベント】壁面の魔石鉱脈を発見し、大量の魔石と ${g}G を採掘した！`,
             'loot'
           );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'METEOR_BLESSING': {
+          sound.victory();
+          runAtkBuffPct += 30;
+          runDefBuffFlat += 6;
+          if (party.length >= 2) unisonGauge = 100;
+          awardMaterial(1.0, 'magic_stone');
+          awardMaterial(1.0, 'magic_stone');
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 8, '#fde047', 22, 1.5);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 14, '流星覚醒! 攻+30%', '#fde047');
+          pushHighlight(
+            'RARE_LOOT',
+            '流星の魔力覚醒！',
+            `${currentFloor}Fで流星光を受け、攻撃+30%・防御+6・連携MAX・魔石+2を獲得！`,
+            'item_sage_orb'
+          );
+          pushLog(
+            '【大幸運イベント】流星の魔力覚醒！今回攻撃+30%・防御+6・連携ゲージMAX・魔石+2！',
+            'blessing'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'TREASURE_GOBLIN': {
+          const raw = Math.round((85 + stage.id * 38) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const g = isPracticeRun ? calcPracticeGold(raw) : raw;
+          goldEarned += g;
+          enemiesDefeated += 1;
+          sound.victory();
+          sound.coin();
+          awardMaterial(1.0);
+          awardMaterial(1.0);
+          spawnParticles(345, 170, '#facc15', 22, 1.5);
+          if (g > 0) addFloatText(340, 152, `大金塊 +${g}G`, '#facc15');
+          let droppedName = '';
+          if (!isPracticeRun && Math.random() < 0.72) {
+            const picked = rollDropItem({
+              stageId: stage.id,
+              loopCount: effectiveDropLoop,
+              source: 'CHEST',
+              floor: currentFloor,
+              isBossRush: stage.isBossRush,
+            });
+            if (picked) {
+              lootedItems.push(picked.id);
+              droppedName = picked.name;
+            }
+          }
+          pushLog(
+            isPracticeRun
+              ? `【大発見】大黄金ゴブリンを捕まえ ${g}G を回収（仮潜入·低効率）。`
+              : `【大発見】大黄金ゴブリンを捕獲！${g}G と素材2個${droppedName ? `＋「${droppedName}」` : ''}を獲得！`,
+            'loot'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'LOST_SHRINE_REVIVE': {
+          sound.victory();
+          let revived = 0;
+          party.forEach((u) => {
+            if (!u.alive) {
+              u.alive = true;
+              u.hp = Math.round(u.maxHp * 0.75);
+              revived += 1;
+            } else {
+              healUnit(u, Math.round(u.maxHp * 0.5), 'hero');
+            }
+          });
+          runDefBuffFlat += 4;
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#34d399', 20, 1.4);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 12, revived > 0 ? '全員蘇生!' : 'HP50%回復!', '#34d399');
+          pushLog(
+            revived > 0
+              ? `【奇跡イベント】古代の蘇生祭壇が輝き、倒れた仲間${revived}人が蘇生＆全員大きく回復！`
+              : '【奇跡イベント】古代の蘇生祭壇が輝き、全員HP50%回復＆防御+4！',
+            'heal'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'ANCIENT_SUPPLY_CACHE': {
+          sound.heal();
+          let restoredSlots = 0;
+          carriedSlots.forEach((s) => {
+            if (s.isConsumable && s.remainingUses < s.maxUses) {
+              s.remainingUses += 1;
+              restoredSlots += 1;
+            }
+          });
+          awardMaterial(1.0, 'iron_ore');
+          awardMaterial(1.0, 'iron_ore');
+          awardMaterial(1.0, 'ancient_scroll');
+          spawnParticles(345, 170, '#38bdf8', 18, 1.3);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 12, '物資補充+1!', '#38bdf8');
+          pushLog(
+            `【補給イベント】伝説の補給箱を発見！消費アイテム使用回数+1（${restoredSlots}枠補充）＆鉄鉱石+2・古文書+1！`,
+            'loot'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'CHAOS_ROULETTE': {
+          const r = Math.random();
+          if (r < 0.35) {
+            const raw = Math.round((150 + stage.id * 55) * (1 + goldBonusPct / 100) * loopRewardMult);
+            const g = isPracticeRun ? calcPracticeGold(raw) : raw;
+            goldEarned += g;
+            sound.victory();
+            sound.coin();
+            if (g > 0) addFloatText(340, 150, `黄金嵐 +${g}G!`, '#fde047');
+            let itemName = '';
+            if (!isPracticeRun) {
+              const picked = rollDropItem({
+                stageId: stage.id,
+                loopCount: effectiveDropLoop,
+                source: 'BOSS',
+                floor: currentFloor,
+                isBossRush: stage.isBossRush,
+              });
+              if (picked) {
+                lootedItems.push(picked.id);
+                itemName = picked.name;
+              }
+            }
+            pushHighlight(
+              'RARE_LOOT',
+              '混沌ルーレット：黄金の嵐！',
+              `${currentFloor}Fで黄金の嵐を引き当て +${g}G${itemName ? `＆「${itemName}」` : ''}獲得！`,
+              'item_clover'
+            );
+            pushLog(`【混沌ルーレット：大当たり】黄金の嵐！+${g}G${itemName ? `＆「${itemName}」` : ''}獲得！`, 'loot');
+          } else if (r < 0.65) {
+            runAtkBuffPct += 55;
+            runDefBuffFlat += 10;
+            sound.victory();
+            party.forEach((u) => healUnit(u, u.maxHp, 'hero'));
+            addFloatText(heroUnit.x + 8, heroUnit.y - 16, '神速狂戦士 攻+55%', '#f43f5e');
+            pushLog('【混沌ルーレット：神速覚醒】攻撃+55%・防御+10・パーティ全員全快！！', 'blessing');
+          } else if (r < 0.85) {
+            sound.coin();
+            for (let k = 0; k < 3; k++) {
+              awardMaterial(1.0, 'iron_ore');
+              awardMaterial(1.0, 'magic_stone');
+              awardMaterial(1.0, 'ancient_scroll');
+            }
+            addFloatText(340, 152, '素材9個獲得!', '#a855f7');
+            pushLog('【混沌ルーレット：素材大爆発】鉄鉱石+3・魔石+3・古文書+3を一挙獲得！', 'loot');
+          } else {
+            runAtkBuffPct += 45;
+            sound.hit(false);
+            party.forEach((u) => {
+              if (!u.alive) return;
+              const dmg = Math.max(4, Math.round(u.maxHp * 0.18));
+              u.hp = Math.max(1, u.hp - dmg);
+            });
+            let itemName = '';
+            if (!isPracticeRun) {
+              const picked = rollDropItem({
+                stageId: stage.id,
+                loopCount: effectiveDropLoop,
+                source: 'BOSS',
+                floor: currentFloor,
+                isBossRush: stage.isBossRush,
+              });
+              if (picked) {
+                lootedItems.push(picked.id);
+                itemName = picked.name;
+              }
+            }
+            addFloatText(heroUnit.x + 8, heroUnit.y - 14, '闇霧 攻+45%!', '#c084fc');
+            pushLog(
+              `【混沌ルーレット：試練の闇霧】全員HP18%消費と引き換えに攻撃+45%${itemName ? `＆「${itemName}」` : ''}獲得！`,
+              'alert'
+            );
+          }
           phase = 'ROOM_CLEAR';
           clearWaitTimer = 0;
           break;
@@ -1300,9 +1545,10 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
     const pickAutoEventOption = (ev: DungeonEventDef): DungeonEventOption => {
       const hpRatio = heroUnit.hp / heroUnit.maxHp;
       const availableGold = runSave.gold + goldEarned;
+      const anyFallen = party.some((u) => !u.alive);
 
       if (ev.id === 'glowing_spring') {
-        return hpRatio < 0.72 ? ev.options[0] : ev.options[1];
+        return anyFallen || hpRatio < 0.72 ? ev.options[0] : ev.options[1];
       }
       if (ev.id === 'wandering_peddler') {
         if (hpRatio < 0.6 && availableGold >= 25) return ev.options[0];
@@ -1316,7 +1562,23 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         return hpRatio > 0.55 ? ev.options[0] : ev.options[1];
       }
       if (ev.id === 'mysterious_chest') {
-        return hasThief || hpRatio > 0.78 ? ev.options[1] : ev.options[0];
+        return hasThief || hpRatio > 0.72 ? ev.options[1] : ev.options[0];
+      }
+      if (ev.id === 'ancient_armory') {
+        return hasThief || hpRatio > 0.55 ? ev.options[0] : ev.options[1];
+      }
+      if (ev.id === 'mystic_fountain_wish') {
+        if (anyFallen || hpRatio < 0.45) return ev.options[2];
+        return hpRatio > 0.72 ? ev.options[0] : ev.options[1];
+      }
+      if (ev.id === 'secret_vault') {
+        return hasThief || hpRatio > 0.62 ? ev.options[0] : ev.options[1];
+      }
+      if (ev.id === 'dragon_shrine') {
+        return hpRatio > 0.68 ? ev.options[0] : ev.options[1];
+      }
+      if (ev.id === 'crimson_pact') {
+        return hpRatio > 0.72 ? ev.options[0] : ev.options[1];
       }
       if (ev.id === 'mimic_chest') {
         return hasThief || hpRatio > 0.65 ? ev.options[0] : ev.options[1];
@@ -1329,6 +1591,13 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         if (hpRatio > 0.72) return ev.options[0];
         return availableGold >= 20 ? ev.options[1] : ev.options[0];
       }
+      if (ev.id === 'time_rift') {
+        const needsRefill = carriedSlots.some(
+          (s) => s.isConsumable && s.remainingUses < s.maxUses
+        );
+        if (needsRefill || hpRatio <= 0.7) return ev.options[0];
+        return ev.options[1];
+      }
       return ev.options[0];
     };
 
@@ -1340,14 +1609,15 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
       switch (opt.outcome) {
         case 'SAFE_CHEST': {
-          const baseG = 28 + stage.id * 16 + (hasThief ? 20 : 0);
+          const baseG = 38 + stage.id * 20 + (hasThief ? 28 : 0);
           const raw = Math.round(baseG * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
           sound.coin();
           if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
           spawnParticles(345, 175, '#facc15', 12, 1.2);
-          awardMaterial(0.95);
+          awardMaterial(1.0);
+          if (hasThief) awardMaterial(0.75);
           pushLog(
             isPracticeRun
               ? `慎重に宝箱を開けて ${g}G を手に入れた（仮潜入·低効率）。`
@@ -1359,7 +1629,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           break;
         }
         case 'RISKY_CHEST': {
-          const baseG = 45 + stage.id * 22;
+          const baseG = 58 + stage.id * 26;
           const raw = Math.round(baseG * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
@@ -1367,7 +1637,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
           spawnParticles(345, 175, '#facc15', 14, 1.3);
 
-          if (Math.random() < 0.65 || hasThief) {
+          if (Math.random() < 0.72 || hasThief) {
             if (!isPracticeRun) {
               const picked = rollDropItem({
                 stageId: stage.id,
@@ -1405,20 +1675,27 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
         case 'HEAL_SPRING': {
           sound.heal();
-          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.45)));
-          pushLog('清らかな泉の水を飲み、パーティの体力が大きく回復した！', 'heal');
+          party.forEach((u) => {
+            if (!u.alive) {
+              u.alive = true;
+              u.hp = Math.round(u.maxHp * 0.35);
+            } else {
+              healUnit(u, Math.round(u.maxHp * 0.6));
+            }
+          });
+          pushLog('清らかな泉の水を飲み、パーティが大きく回復（倒れた仲間も蘇生）した！', 'heal');
           phase = 'ROOM_CLEAR';
           clearWaitTimer = 0;
           break;
         }
         case 'DIVE_SPRING': {
-          const raw = Math.round((40 + stage.id * 18) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const raw = Math.round((56 + stage.id * 24) * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
           sound.coin();
           if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
           awardMaterial(1.0, 'magic_stone');
-          if (Math.random() < 0.3) {
+          if (Math.random() < 0.25) {
             const dmg = Math.max(5, Math.round(heroUnit.maxHp * 0.1));
             heroUnit.hp = Math.max(1, heroUnit.hp - dmg);
             addFloatText(heroUnit.x + 8, heroUnit.y - 6, `-${dmg}`, '#38bdf8');
@@ -1444,13 +1721,14 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           const cost = Math.max(5, Math.round(heroUnit.maxHp * 0.15));
           heroUnit.hp = Math.max(1, heroUnit.hp - cost);
           heroUnit.hitFlash = 180;
-          runAtkBuffPct += 20;
+          runAtkBuffPct += 30;
+          runDefBuffFlat += 5;
           sound.heal();
           awardMaterial(1.0, 'magic_stone');
-          spawnParticles(heroUnit.x + 12, heroUnit.y + 12, '#ef4444', 12, 1.2);
-          addFloatText(heroUnit.x + 8, heroUnit.y - 10, '攻撃+20%', '#f97316');
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 12, '#ef4444', 14, 1.3);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 10, '攻+30% 防+5', '#f97316');
           pushLog(
-            `体力を捧げて石碑の力を得た！（攻撃力+20%${isPracticeRun ? '' : ' · 魔石+1'}）`,
+            `体力を捧げて石碑の強い力を得た！（攻撃+30%・防御+5${isPracticeRun ? '' : ' · 魔石+1'}）`,
             'blessing'
           );
           phase = 'ROOM_CLEAR';
@@ -1459,12 +1737,13 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         }
         case 'ALTAR_PRAY': {
           sound.heal();
-          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.15)));
+          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.2)));
           awardMaterial(1.0, 'ancient_scroll');
+          awardMaterial(0.55, 'ancient_scroll');
           pushLog(
             isPracticeRun
-              ? '祈りを捧げ、パーティが少し回復した。'
-              : '祈りを捧げ、古文書を1つ授かった。',
+              ? '祈りを捧げ、パーティが回復した。'
+              : '祈りを捧げ、HP回復と古文書を授かった！',
             'loot'
           );
           phase = 'ROOM_CLEAR';
@@ -1476,8 +1755,10 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           if (!isPracticeRun && runSave.gold + goldEarned >= cost) {
             goldEarned -= cost;
             sound.heal();
-            party.forEach((u) => healUnit(u, 70));
-            pushLog(`${cost}G を行商人に支払い、特製薬で全員のHPが回復した！`, 'heal');
+            runAtkBuffPct += 10;
+            party.forEach((u) => healUnit(u, 90));
+            addFloatText(heroUnit.x + 8, heroUnit.y - 12, 'HP回復＆攻+10%', '#34d399');
+            pushLog(`${cost}G を行商人に支払い、特製薬でHP90回復＆攻撃+10%！`, 'heal');
           } else if (isPracticeRun) {
             pushLog('仮潜入中は行商人との取引を行えません。', 'info');
           } else {
@@ -1494,7 +1775,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
             sound.buy();
             awardMaterial(1.0);
             awardMaterial(1.0);
-            pushLog(`${cost}G で素材袋を購入した！`, 'loot');
+            awardMaterial(1.0);
+            pushLog(`${cost}G で大入り素材袋を購入した（素材3個入手）！`, 'loot');
           } else if (isPracticeRun) {
             pushLog('仮潜入中は行商人との取引を行えません。', 'info');
           } else {
@@ -1505,48 +1787,309 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           break;
         }
         case 'FORK_ELITE': {
-          const elite = spawnEnemy(stage.eliteId, 345, 174, currentFloor);
-          elite.goldDrop = Math.round(elite.goldDrop * 1.5);
-          encounteredEnemyIds.add(elite.enemyDefId);
+          const midBoss = spawnMidBoss(stage.eliteId, 345, 174, currentFloor, {
+            midBossAtkBonus: 12,
+          });
+          encounteredEnemyIds.add(midBoss.enemyDefId);
           encounter = {
             kind: 'COMBAT',
-            enemies: [elite],
-            label: `強敵ルート · ${elite.name}`,
+            enemies: [midBoss],
+            label: `強敵ルート · ${midBoss.name}`,
           };
+          sound.bossWarning(false);
           markEquipmentUsed();
-          pushLog(`右の道で強敵「${elite.name}」と戦闘になった！`, 'combat');
+          pushLog(`右の強敵ルートで中ボス「${midBoss.name}」が出現！！`, 'combat');
           tryAutoItems('ELITE_OR_PACK');
           break;
         }
         case 'FORK_REST': {
           sound.heal();
-          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.25), 'hero'));
-          pushLog('静かな抜け道で息を整えた（HP25%回復）。', 'heal');
+          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.3), 'hero'));
+          pushLog('静かな抜け道で息を整えた（HP30%回復）。', 'heal');
           phase = 'ROOM_CLEAR';
           clearWaitTimer = 0;
           break;
         }
-        case 'MIMIC_CHEST': {
-          if (Math.random() < (hasThief ? 0.55 : 0.42)) {
-            const raw = Math.round((85 + stage.id * 34) * (1 + goldBonusPct / 100) * loopRewardMult);
+        case 'ARMORY_WEAPON': {
+          runAtkBuffPct += 35;
+          sound.victory();
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#f59e0b', 18, 1.4);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, '古代武具! 攻+35%', '#facc15');
+          let itemName = '';
+          if (!isPracticeRun) {
+            const picked = rollDropItem({
+              stageId: stage.id,
+              loopCount: effectiveDropLoop,
+              source: 'BOSS',
+              floor: currentFloor,
+              isBossRush: stage.isBossRush,
+            });
+            if (picked) {
+              lootedItems.push(picked.id);
+              itemName = picked.name;
+              if (picked.rarity === 'RARE' || picked.rarity === 'EPIC') {
+                pushHighlight(
+                  'RARE_LOOT',
+                  `古代武具庫で「${picked.name}」発掘！`,
+                  `${currentFloor}Fの封印武具庫から${picked.rarity}武具と攻撃+35%を獲得！`,
+                  picked.spriteId
+                );
+              }
+            }
+          }
+          if (!hasThief && Math.random() < 0.25) {
+            const dmg = Math.max(5, Math.round(heroUnit.maxHp * 0.12));
+            heroUnit.hp = Math.max(1, heroUnit.hp - dmg);
+            addFloatText(heroUnit.x + 8, heroUnit.y - 4, `-${dmg}`, '#ef4444');
+            pushLog(
+              `封印の反動で ${dmg} ダメージを受けたが、攻撃+35%${itemName ? `＆「${itemName}」` : ''}を手に入れた！`,
+              'loot'
+            );
+          } else {
+            pushLog(
+              `古代武具庫の封印を解き、攻撃+35%${itemName ? `＆「${itemName}」` : ''}を獲得！`,
+              'loot'
+            );
+          }
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'ARMORY_SALVAGE': {
+          sound.coin();
+          awardMaterial(1.0, 'iron_ore');
+          awardMaterial(1.0, 'iron_ore');
+          awardMaterial(1.0, 'magic_stone');
+          awardMaterial(1.0, 'magic_stone');
+          awardMaterial(1.0, 'ancient_scroll');
+          spawnParticles(345, 170, '#fb923c', 16, 1.3);
+          addFloatText(340, 152, '資材+5!', '#fb923c');
+          pushLog('古代武具庫から鉄鉱石+2・魔石+2・古文書+1を回収した！', 'loot');
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'WISH_POWER': {
+          sound.victory();
+          runAtkBuffPct += 45;
+          runDefBuffFlat += 8;
+          if (party.length >= 2) unisonGauge = 100;
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#e879f9', 22, 1.5);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, '願い叶う! 攻+45% 防+8', '#e879f9');
+          pushHighlight(
+            'RARE_LOOT',
+            '星降る聖泉の闘志祝福',
+            `${currentFloor}Fで聖泉に願い、攻撃+45%・防御+8・連携ゲージMAXを得た！`,
+            'bless_bond'
+          );
+          pushLog('聖泉の奇跡で今回攻撃+45%・防御+8・連携ゲージ100%を獲得！', 'blessing');
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'WISH_FORTUNE': {
+          const raw = Math.round((120 + stage.id * 45) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const g = isPracticeRun ? calcPracticeGold(raw) : raw;
+          goldEarned += g;
+          sound.victory();
+          sound.coin();
+          if (g > 0) addFloatText(340, 152, `+${g}G!`, '#fde047');
+          spawnParticles(345, 170, '#fde047', 24, 1.5);
+          let itemName = '';
+          if (!isPracticeRun) {
+            const picked = rollDropItem({
+              stageId: stage.id,
+              loopCount: effectiveDropLoop,
+              source: 'BOSS',
+              floor: currentFloor,
+              isBossRush: stage.isBossRush,
+            });
+            if (picked) {
+              lootedItems.push(picked.id);
+              itemName = picked.name;
+            }
+          }
+          pushLog(
+            isPracticeRun
+              ? `聖泉から黄金の雨！+${g}G（仮潜入·低効率）`
+              : `聖泉から黄金と秘宝の雨！+${g}G${itemName ? `＆「${itemName}」` : ''}を獲得！！`,
+            'loot'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'WISH_MIRACLE': {
+          sound.victory();
+          party.forEach((u) => {
+            u.alive = true;
+            u.hp = u.maxHp;
+          });
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#34d399', 22, 1.5);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, '完全蘇生＆全快!', '#34d399');
+          pushLog('聖泉の奇跡で倒れた仲間も含め全員がHP100%完全復活した！', 'heal');
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'VAULT_PLUNDER': {
+          if (!hasThief && Math.random() < 0.3) {
+            const mimicBoss = spawnMidBoss('mimic', 345, 174, currentFloor, {
+              prefix: '【中ボス】黄金守護 ',
+              goldMult: 3.4,
+              midBossAtkBonus: 15,
+            });
+            encounteredEnemyIds.add('mimic');
+            encounter = {
+              kind: 'COMBAT',
+              enemies: [mimicBoss],
+              label: `宝物庫守護 · ${mimicBoss.name}`,
+            };
+            sound.bossWarning(false);
+            markEquipmentUsed();
+            pushLog(`隠し宝物庫の番人「${mimicBoss.name}」が襲いかかってきた！！`, 'alert');
+            tryAutoItems('ELITE_OR_PACK');
+          } else {
+            const raw = Math.round((140 + stage.id * 50) * (1 + goldBonusPct / 100) * loopRewardMult);
             const g = isPracticeRun ? calcPracticeGold(raw) : raw;
             goldEarned += g;
+            sound.victory();
             sound.coin();
-            if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
             awardMaterial(1.0, 'magic_stone');
-            if (!isPracticeRun) {
+            awardMaterial(1.0, 'ancient_scroll');
+            if (g > 0) addFloatText(340, 152, `宝物庫 +${g}G!`, '#fde047');
+            spawnParticles(345, 170, '#fde047', 24, 1.5);
+            let itemName = '';
+            if (!isPracticeRun && Math.random() < 0.8) {
               const picked = rollDropItem({
                 stageId: stage.id,
                 loopCount: effectiveDropLoop,
-                source: 'CHEST',
+                source: 'BOSS',
                 floor: currentFloor,
                 isBossRush: stage.isBossRush,
               });
               if (picked) {
                 lootedItems.push(picked.id);
-                pushLog(`黄金宝箱だった！${g}G と「${picked.name}」を獲得！`, 'loot');
+                itemName = picked.name;
+              }
+            }
+            pushLog(
+              isPracticeRun
+                ? `王家の隠し宝物庫から ${g}G 回収！（仮潜入·低効率）`
+                : `王家の隠し宝物庫を制覇！+${g}G・魔石・古文書${itemName ? `＆「${itemName}」` : ''}獲得！`,
+              'loot'
+            );
+            phase = 'ROOM_CLEAR';
+            clearWaitTimer = 0;
+          }
+          break;
+        }
+        case 'VAULT_SAFE': {
+          const raw = Math.round((75 + stage.id * 25) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const g = isPracticeRun ? calcPracticeGold(raw) : raw;
+          goldEarned += g;
+          sound.coin();
+          awardMaterial(1.0, 'iron_ore');
+          awardMaterial(1.0, 'iron_ore');
+          if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
+          pushLog(
+            isPracticeRun
+              ? `手前の金貨袋から ${g}G 獲得（仮潜入·低効率）。`
+              : `手前の金貨袋から ${g}G と鉄鉱石+2を安全に回収した！`,
+            'loot'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'TRIAL_MIDBOSS': {
+          const midBoss = spawnMidBoss(stage.eliteId, 345, 174, currentFloor, {
+            prefix: '【中ボス】古竜試練 ',
+            goldMult: 3.3,
+            midBossAtkBonus: 25,
+          });
+          encounteredEnemyIds.add(midBoss.enemyDefId);
+          encounter = {
+            kind: 'COMBAT',
+            enemies: [midBoss],
+            label: `古竜の試練 · ${midBoss.name}`,
+          };
+          sound.bossWarning(false);
+          markEquipmentUsed();
+          pushLog(`古竜の試練が発動！「${midBoss.name}」が立ち塞がった！！`, 'combat');
+          tryAutoItems('ELITE_OR_PACK');
+          break;
+        }
+        case 'DRAGON_BLESS': {
+          sound.heal();
+          runDefBuffFlat += 10;
+          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.4), 'hero'));
+          awardMaterial(1.0, 'ancient_scroll');
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#38bdf8', 16, 1.3);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 14, '竜鱗 防+10!', '#38bdf8');
+          pushLog('古竜の加護を受け、全員HP40%回復・今回防御+10・古文書+1を獲得！', 'blessing');
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'PACT_BERSERK': {
+          const cost = Math.max(5, Math.round(heroUnit.maxHp * 0.3));
+          heroUnit.hp = Math.max(1, heroUnit.hp - cost);
+          heroUnit.hitFlash = 220;
+          runAtkBuffPct += 60;
+          sound.victory();
+          awardMaterial(1.0, 'ancient_scroll');
+          awardMaterial(1.0, 'ancient_scroll');
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#ef4444', 22, 1.5);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, '狂戦士 攻+60%!!', '#ef4444');
+          pushHighlight(
+            'RARE_LOOT',
+            '紅蓮の狂戦士契約！',
+            `${currentFloor}Fで血を捧げ、今回の攻撃力+60%＆古文書+2を解放した！`,
+            'bless_blood'
+          );
+          pushLog('紅蓮の契約を果たし、今回攻撃+60%＆古文書+2を獲得！！', 'blessing');
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'PACT_VITALITY': {
+          sound.victory();
+          party.forEach((u) => {
+            if (!u.alive) return;
+            u.maxHp = Math.round(u.maxHp * 1.2);
+            u.hp = u.maxHp;
+          });
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#34d399', 20, 1.4);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, '最大HP+20%＆全快!', '#34d399');
+          pushLog('紅蓮の血石を砕き、今回探索中の全員最大HP+20%＆HP全快！', 'heal');
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'MIMIC_CHEST': {
+          if (Math.random() < (hasThief ? 0.58 : 0.45)) {
+            const raw = Math.round((110 + stage.id * 40) * (1 + goldBonusPct / 100) * loopRewardMult);
+            const g = isPracticeRun ? calcPracticeGold(raw) : raw;
+            goldEarned += g;
+            sound.victory();
+            sound.coin();
+            if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
+            awardMaterial(1.0, 'magic_stone');
+            awardMaterial(1.0, 'ancient_scroll');
+            if (!isPracticeRun) {
+              const picked = rollDropItem({
+                stageId: stage.id,
+                loopCount: effectiveDropLoop,
+                source: 'BOSS',
+                floor: currentFloor,
+                isBossRush: stage.isBossRush,
+              });
+              if (picked) {
+                lootedItems.push(picked.id);
+                pushLog(`本物の黄金宝箱だった！${g}G・魔石・古文書と「${picked.name}」を獲得！`, 'loot');
               } else {
-                pushLog(`黄金宝箱から ${g}G と魔石を獲得！`, 'loot');
+                pushLog(`本物の黄金宝箱から ${g}G・魔石・古文書を獲得！`, 'loot');
               }
             } else {
               pushLog(`黄金宝箱から ${g}G を回収（仮潜入·低効率）。`, 'loot');
@@ -1554,15 +2097,20 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
             phase = 'ROOM_CLEAR';
             clearWaitTimer = 0;
           } else {
-            const mimicEnemy = spawnEnemy('mimic', 345, 174, currentFloor);
+            const mimicBoss = spawnMidBoss('mimic', 345, 174, currentFloor, {
+              prefix: '【中ボス】',
+              goldMult: 3.0,
+              midBossAtkBonus: 12,
+            });
             encounteredEnemyIds.add('mimic');
             encounter = {
               kind: 'COMBAT',
-              enemies: [mimicEnemy],
-              label: `擬態魔物 · ${mimicEnemy.name}`,
+              enemies: [mimicBoss],
+              label: `中ボス擬態 · ${mimicBoss.name}`,
             };
+            sound.bossWarning(false);
             markEquipmentUsed();
-            pushLog(`宝箱が牙を剥いた！「${mimicEnemy.name}」が出現！`, 'alert');
+            pushLog(`宝箱が巨大な牙を剥いた！「${mimicBoss.name}」が出現！！`, 'alert');
             tryAutoItems('ELITE_OR_PACK');
           }
           break;
@@ -1571,11 +2119,11 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           const cost = opt.goldCost ?? 40;
           if (!isPracticeRun && runSave.gold + goldEarned >= cost) {
             goldEarned -= cost;
-            runAtkBuffPct += 25;
+            runAtkBuffPct += 35;
             sound.heal();
-            party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.5), 'hero'));
-            addFloatText(heroUnit.x + 8, heroUnit.y - 16, '攻撃+25%', '#a855f7');
-            pushLog(`${cost}Gで秘薬を調合してもらい、攻撃+25%＆全員HP50%回復！`, 'blessing');
+            party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.6), 'hero'));
+            addFloatText(heroUnit.x + 8, heroUnit.y - 16, '攻撃+35%', '#a855f7');
+            pushLog(`${cost}Gで秘薬を調合してもらい、攻撃+35%＆全員HP60%回復！`, 'blessing');
           } else if (isPracticeRun) {
             pushLog('仮潜入中は錬金術師との取引を行えません。', 'info');
           } else {
@@ -1586,15 +2134,13 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           break;
         }
         case 'ALCHEMIST_SELL': {
-          const raw = Math.round((52 + stage.id * 24) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const raw = Math.round((68 + stage.id * 30) * (1 + goldBonusPct / 100) * loopRewardMult);
           const g = isPracticeRun ? calcPracticeGold(raw) : raw;
           goldEarned += g;
           sound.coin();
           if (g > 0) addFloatText(340, 155, `+${g}G`, '#facc15');
-          awardMaterial(0.9, 'magic_stone');
-          if (!isPracticeRun && Math.random() < 0.45) {
-            awardMaterial(1.0, 'ancient_scroll');
-          }
+          awardMaterial(1.0, 'magic_stone');
+          awardMaterial(0.75, 'ancient_scroll');
           pushLog(
             isPracticeRun
               ? `放浪錬金術師に鑑定買い取りしてもらった（+${g}G · 仮潜入·低効率）。`
@@ -1609,19 +2155,34 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           const hpCost = Math.max(5, Math.round(heroUnit.maxHp * 0.25));
           heroUnit.hp = Math.max(1, heroUnit.hp - hpCost);
           heroUnit.hitFlash = 180;
-          if (Math.random() < 0.68) {
-            const raw = Math.round((88 + stage.id * 35) * (1 + goldBonusPct / 100) * loopRewardMult);
+          if (Math.random() < 0.7) {
+            const raw = Math.round((125 + stage.id * 45) * (1 + goldBonusPct / 100) * loopRewardMult);
             const g = isPracticeRun ? calcPracticeGold(raw) : raw;
             goldEarned += g;
-            runAtkBuffPct += 25;
+            runAtkBuffPct += 40;
             sound.victory();
-            if (g > 0) addFloatText(heroUnit.x + 8, heroUnit.y - 16, `大吉!+${g}G`, '#facc15');
+            if (g > 0) addFloatText(heroUnit.x + 8, heroUnit.y - 16, `超大吉!+${g}G`, '#facc15');
+            awardMaterial(1.0, 'iron_ore');
             awardMaterial(1.0, 'magic_stone');
             awardMaterial(1.0, 'ancient_scroll');
+            let itemName = '';
+            if (!isPracticeRun && Math.random() < 0.55) {
+              const picked = rollDropItem({
+                stageId: stage.id,
+                loopCount: effectiveDropLoop,
+                source: 'CHEST',
+                floor: currentFloor,
+                isBossRush: stage.isBossRush,
+              });
+              if (picked) {
+                lootedItems.push(picked.id);
+                itemName = picked.name;
+              }
+            }
             pushLog(
               isPracticeRun
-                ? `運命の天秤は大吉！攻撃+25%＆+${g}G（仮潜入·低効率）`
-                : `運命の天秤は大吉！+${g}G・魔石・古文書・攻撃+25%を獲得！`,
+                ? `運命の天秤は超大吉！攻撃+40%＆+${g}G（仮潜入·低効率）`
+                : `運命の天秤は超大吉！+${g}G・素材3種・攻撃+40%${itemName ? `＆「${itemName}」` : ''}を獲得！`,
               'loot'
             );
           } else {
@@ -1640,12 +2201,65 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           if (!isPracticeRun && runSave.gold + goldEarned >= cost) {
             goldEarned -= cost;
             sound.heal();
-            party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.35), 'hero'));
-            pushLog(`${cost}G を祭壇に供え、全員のHPが35%回復した！`, 'heal');
+            party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.45), 'hero'));
+            pushLog(`${cost}G を祭壇に供え、全員のHPが45%回復した！`, 'heal');
           } else if (isPracticeRun) {
             pushLog('仮潜入中はゴールド供物を行えません。', 'info');
           } else {
             pushLog('ゴールドが足りず祈りのみ捧げた。', 'info');
+          }
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'RIFT_POWER': {
+          sound.victory();
+          runAtkBuffPct += 50;
+          if (party.length >= 2) unisonGauge = 100;
+          let refilled = 0;
+          carriedSlots.forEach((s) => {
+            if (s.isConsumable && s.remainingUses < s.maxUses) {
+              s.remainingUses += 1;
+              refilled += 1;
+            }
+          });
+          spawnParticles(heroUnit.x + 12, heroUnit.y + 10, '#38bdf8', 24, 1.6);
+          addFloatText(heroUnit.x + 8, heroUnit.y - 16, '時空解放! 攻+50%', '#38bdf8');
+          pushHighlight(
+            'RARE_LOOT',
+            '時空の歪みで全力解放！',
+            `${currentFloor}Fで時空の魔力を浴び、攻撃+50%・消費物資補充・連携100%を達成！`,
+            'item_infinity_crown'
+          );
+          pushLog(
+            `時空の歪みから力を吸収！攻撃+50%・連携MAX・消費アイテム+1補充（${refilled}枠）！`,
+            'blessing'
+          );
+          phase = 'ROOM_CLEAR';
+          clearWaitTimer = 0;
+          break;
+        }
+        case 'RIFT_WARP': {
+          sound.victory();
+          const raw = Math.round((90 + stage.id * 35) * (1 + goldBonusPct / 100) * loopRewardMult);
+          const g = isPracticeRun ? calcPracticeGold(raw) : raw;
+          goldEarned += g;
+          awardMaterial(1.0, 'magic_stone');
+          awardMaterial(1.0, 'magic_stone');
+          party.forEach((u) => healUnit(u, Math.round(u.maxHp * 0.35), 'hero'));
+          if (!stage.isBossRush && (stage.isEndless || currentFloor < stage.floors - 1)) {
+            currentFloor += 1;
+            addFloatText(heroUnit.x + 8, heroUnit.y - 16, `空間跳躍 -> ${currentFloor}F!`, '#a855f7');
+            pushLog(
+              `空間跳躍で ${currentFloor}F へワープ！+${g}G・魔石+2・HP35%回復！`,
+              'blessing'
+            );
+          } else {
+            addFloatText(340, 152, `+${g}G & 魔石+2!`, '#a855f7');
+            pushLog(
+              `空間の狭間から財宝を掠めた！+${g}G・魔石+2・HP35%回復！`,
+              'loot'
+            );
           }
           phase = 'ROOM_CLEAR';
           clearWaitTimer = 0;
@@ -1845,7 +2459,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
 
     const posLabels = ['前衛', '中衛', '後衛'];
     const emitHud = () => {
-      const boss = encounter.enemies.find((e) => e.isBoss && e.alive);
+      const boss = encounter.enemies.find((e) => (e.isBoss || e.isMidBoss) && e.alive);
       onHudUpdateRef.current({
         floor: currentFloor,
         totalFloors: stage.floors,
@@ -1878,7 +2492,14 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           positionLabel: party.length === 2 && i === 1 ? '後衛' : posLabels[i] ?? '後衛',
         })),
         carriedSlots: carriedSlots.map((s) => ({ ...s })),
-        bossInfo: boss ? { name: boss.name, hp: boss.hp, maxHp: boss.maxHp } : null,
+        bossInfo: boss
+          ? {
+              name: boss.name,
+              hp: boss.hp,
+              maxHp: boss.maxHp,
+              isMidBoss: !!boss.isMidBoss && !boss.isBoss,
+            }
+          : null,
         isBossIntro: phase === 'BOSS_INTRO',
         isBossRush: !!stage.isBossRush,
         isEndless: !!stage.isEndless,
@@ -2728,6 +3349,42 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                   Math.round(glowRadius * 2),
                   Math.round(glowRadius * 2)
                 );
+              } else if (e.isMidBoss) {
+                const auraPulse = 0.5 + 0.5 * Math.sin(animClock / 190);
+                const centerX = drawX + size / 2;
+                const centerY = drawY + size / 2;
+
+                ctx.save();
+                ctx.strokeStyle = `rgba(168, 85, 247, ${(0.5 + 0.35 * auraPulse).toFixed(2)})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(centerX, e.y + 7, size * 0.56, 6, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.strokeStyle = `rgba(245, 158, 11, ${(0.35 + 0.35 * auraPulse).toFixed(2)})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.ellipse(centerX, e.y + 7, size * 0.38, 4, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+
+                const glowRadius = size * (0.68 + 0.06 * auraPulse);
+                const radGlow = ctx.createRadialGradient(
+                  centerX,
+                  centerY,
+                  size * 0.12,
+                  centerX,
+                  centerY,
+                  glowRadius
+                );
+                radGlow.addColorStop(0, `rgba(168, 85, 247, ${(0.26 + 0.14 * auraPulse).toFixed(2)})`);
+                radGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = radGlow;
+                ctx.fillRect(
+                  Math.round(centerX - glowRadius),
+                  Math.round(centerY - glowRadius),
+                  Math.round(glowRadius * 2),
+                  Math.round(glowRadius * 2)
+                );
               } else {
                 ctx.fillStyle = 'rgba(0,0,0,0.45)';
                 ctx.fillRect(drawX + 4, e.y + 4, size - 8, 5);
@@ -2765,6 +3422,17 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                 ctx.globalAlpha = 0.22;
                 ctx.drawImage(spr, ghostShift, -1, size, size);
                 ctx.restore();
+              } else if (e.isMidBoss) {
+                const auraPulse = 0.5 + 0.5 * Math.sin(animClock / 190);
+                const px = size / 16;
+                const midAura = getSpriteAuraCanvas(
+                  e.spriteId,
+                  auraPulse > 0.5 ? '#c084fc' : '#f59e0b'
+                );
+                ctx.save();
+                ctx.globalAlpha = 0.55 + 0.28 * auraPulse;
+                ctx.drawImage(midAura, -px, -px, size + px * 2, size + px * 2);
+                ctx.restore();
               }
 
               ctx.drawImage(spr, 0, 0, size, size);
@@ -2782,6 +3450,16 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                   ctx.fillRect(ox - 2, oy - 2, 4, 4);
                   ctx.fillStyle = '#fef08a';
                   ctx.fillRect(ox - 1, oy - 1, 2, 2);
+                }
+              } else if (e.isMidBoss) {
+                const centerX = drawX + size / 2;
+                const centerY = drawY + size / 2;
+                for (let oi = 0; oi < 2; oi++) {
+                  const angle = animClock / 420 + oi * Math.PI;
+                  const ox = Math.round(centerX + Math.cos(angle) * (size * 0.52));
+                  const oy = Math.round(centerY + Math.sin(angle) * (size * 0.32));
+                  ctx.fillStyle = oi % 2 === 0 ? '#c084fc' : '#fbbf24';
+                  ctx.fillRect(ox - 2, oy - 2, 4, 4);
                 }
               }
 
@@ -2809,6 +3487,20 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                 ctx.fillText('【極】', drawX + size / 2 + 1, drawY - 13);
                 ctx.fillStyle = '#fbbf24';
                 ctx.fillText('【極】', drawX + size / 2, drawY - 14);
+              } else if (e.isMidBoss) {
+                ctx.fillStyle = '#c084fc';
+                ctx.fillRect(drawX + 1, drawY - 10, barW + 2, 6);
+                ctx.fillStyle = '#090b10';
+                ctx.fillRect(drawX + 2, drawY - 9, barW, 4);
+                ctx.fillStyle = '#a855f7';
+                ctx.fillRect(drawX + 3, drawY - 8, Math.round((barW - 2) * pct), 2);
+
+                ctx.font = 'bold 9px "DotGothic16", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#090b10';
+                ctx.fillText('【中ボス】', drawX + size / 2 + 1, drawY - 13);
+                ctx.fillStyle = '#e9d5ff';
+                ctx.fillText('【中ボス】', drawX + size / 2, drawY - 14);
               } else {
                 ctx.fillStyle = '#0f172a';
                 ctx.fillRect(drawX + 2, drawY - 7, barW, 4);

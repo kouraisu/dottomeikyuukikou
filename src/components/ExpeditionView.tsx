@@ -296,15 +296,17 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
         )}
       </div>
 
-      {/* Boss Bar (if active) */}
+      {/* Boss / Mid-Boss Bar (if active) */}
       {hud?.bossInfo && (
         <div
           className={`pixel-panel px-4 py-2.5 flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-4 ${
             hud.isBossIntro
               ? 'boss-warning-pulse bg-[#210d12] border-rose-500'
-              : hud.isBossRush || stage.isBossRush
-                ? 'bg-[#1f0e16] border-amber-400/90 shadow-[0_0_16px_rgba(244,63,94,0.28)]'
-                : 'border-amber-500/70'
+              : hud.bossInfo.isMidBoss
+                ? 'bg-[#1c132b] border-purple-400/85 shadow-[0_0_14px_rgba(168,85,247,0.22)]'
+                : hud.isBossRush || stage.isBossRush
+                  ? 'bg-[#1f0e16] border-amber-400/90 shadow-[0_0_16px_rgba(244,63,94,0.28)]'
+                  : 'border-amber-500/70'
           }`}
         >
           <div className="flex items-center gap-2 shrink-0">
@@ -313,12 +315,17 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
                 WARNING
               </span>
             )}
-            {(hud.isBossRush || stage.isBossRush) && (
+            {hud.bossInfo.isMidBoss && (
+              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-purple-600 text-white border border-purple-300">
+                中ボス
+              </span>
+            )}
+            {!hud.bossInfo.isMidBoss && (hud.isBossRush || stage.isBossRush) && (
               <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500 text-slate-950 border border-amber-200">
                 極BOSS · {hud.floor}/{hud.totalFloors}
               </span>
             )}
-            {(hud.isEndless || stage.isEndless) && (
+            {!hud.bossInfo.isMidBoss && (hud.isEndless || stage.isEndless) && (
               <span className="px-1.5 py-0.5 text-[10px] font-bold bg-purple-600 text-white border border-purple-300">
                 無限BOSS · {hud.floor}F
               </span>
@@ -327,26 +334,30 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
               className={`font-pixel text-sm ${
                 hud.isBossIntro
                   ? 'text-rose-300'
-                  : hud.isBossRush || stage.isBossRush
-                    ? 'text-amber-300'
+                  : hud.bossInfo.isMidBoss
+                    ? 'text-purple-200'
                     : 'text-amber-300'
               }`}
             >
-              BOSS · {hud.bossInfo.name}
+              {hud.bossInfo.isMidBoss ? hud.bossInfo.name : `BOSS · ${hud.bossInfo.name}`}
             </span>
           </div>
           <div
             className={`flex-1 min-w-[140px] h-3.5 bg-[#101218] overflow-hidden ${
-              hud.isBossRush || stage.isBossRush
-                ? 'border border-amber-400/70'
-                : 'border border-[#2b3040]'
+              hud.bossInfo.isMidBoss
+                ? 'border border-purple-400/70'
+                : hud.isBossRush || stage.isBossRush
+                  ? 'border border-amber-400/70'
+                  : 'border border-[#2b3040]'
             }`}
           >
             <div
               className={`h-full transition-all duration-150 ${
-                hud.isBossRush || stage.isBossRush
-                  ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-amber-400'
-                  : 'bg-rose-600'
+                hud.bossInfo.isMidBoss
+                  ? 'bg-gradient-to-r from-purple-600 via-fuchsia-500 to-amber-400'
+                  : hud.isBossRush || stage.isBossRush
+                    ? 'bg-gradient-to-r from-rose-600 via-rose-500 to-amber-400'
+                    : 'bg-rose-600'
               }`}
               style={{
                 width: `${Math.max(0, Math.min(100, (hud.bossInfo.hp / hud.bossInfo.maxHp) * 100))}%`,

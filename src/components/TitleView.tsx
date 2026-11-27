@@ -107,8 +107,188 @@ interface VignetteSpec {
   build: (startEdgeX: number) => VignetteActor[];
 }
 
+interface AmbientWeatherParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  phase: number;
+  color: string;
+  size: number;
+  kind: 'sakura' | 'leaf' | 'snow' | 'firefly';
+  life: number;
+  maxLife: number;
+}
+
 const CANVAS_W = 520;
 const CANVAS_H = 224;
+
+function hexToRgb(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const n = parseInt(clean, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function lerpColor(a: string, b: string, t: number): string {
+  const clamped = Math.max(0, Math.min(1, t));
+  const [r1, g1, b1] = hexToRgb(a);
+  const [r2, g2, b2] = hexToRgb(b);
+  const r = Math.round(r1 + (r2 - r1) * clamped);
+  const g = Math.round(g1 + (g2 - g1) * clamped);
+  const bl = Math.round(b1 + (b2 - b1) * clamped);
+  return `rgb(${r},${g},${bl})`;
+}
+
+interface SkyKeyframe {
+  t: number;
+  bands: [string, string, string, string, string];
+  mountain: string;
+  cloud: string;
+  nightAlpha: number;
+}
+
+const SKY_KEYFRAMES: SkyKeyframe[] = [
+  // 0.00 Dawn
+  {
+    t: 0.0,
+    bands: ['#1e3a5f', '#3b6ca8', '#7c8db5', '#e5989b', '#fcd5ce'],
+    mountain: '#353e5c',
+    cloud: '#fed7aa',
+    nightAlpha: 0.25,
+  },
+  // 0.22 Morning -> Bright Day
+  {
+    t: 0.22,
+    bands: ['#0284c7', '#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd'],
+    mountain: '#2f4b6e',
+    cloud: '#f8fafc',
+    nightAlpha: 0.0,
+  },
+  // 0.44 Afternoon Day
+  {
+    t: 0.44,
+    bands: ['#0369a1', '#0284c7', '#38bdf8', '#7dd3fc', '#e0f2fe'],
+    mountain: '#334e70',
+    cloud: '#ffffff',
+    nightAlpha: 0.0,
+  },
+  // 0.60 Golden Sunset
+  {
+    t: 0.6,
+    bands: ['#1e1b4b', '#581c87', '#be185d', '#ea580c', '#fbbf24'],
+    mountain: '#3b243f',
+    cloud: '#fdba74',
+    nightAlpha: 0.35,
+  },
+  // 0.74 Deep Dusk -> Night
+  {
+    t: 0.74,
+    bands: ['#090d1c', '#111936', '#18244a', '#24325e', '#333b68'],
+    mountain: '#19223b',
+    cloud: '#475569',
+    nightAlpha: 0.92,
+  },
+  // 0.90 Midnight
+  {
+    t: 0.9,
+    bands: ['#070b18', '#0e152e', '#162044', '#212d56', '#2c3560'],
+    mountain: '#151d33',
+    cloud: '#334155',
+    nightAlpha: 1.0,
+  },
+];
+
+function sampleSky(dayPhase: number) {
+  const p = ((dayPhase % 1) + 1) % 1;
+  let k0 = SKY_KEYFRAMES[SKY_KEYFRAMES.length - 1];
+  let k1 = SKY_KEYFRAMES[0];
+  let span = 1 - k0.t + k1.t;
+  let dist = p >= k0.t ? p - k0.t : 1 - k0.t + p;
+
+  for (let i = 0; i < SKY_KEYFRAMES.length - 1; i++) {
+    if (p >= SKY_KEYFRAMES[i].t && p < SKY_KEYFRAMES[i + 1].t) {
+      k0 = SKY_KEYFRAMES[i];
+      k1 = SKY_KEYFRAMES[i + 1];
+      span = k1.t - k0.t;
+      dist = p - k0.t;
+      break;
+    }
+  }
+  const u = span > 0 ? dist / span : 0;
+  const bands = k0.bands.map((col, idx) => lerpColor(col, k1.bands[idx], u));
+  const mountain = lerpColor(k0.mountain, k1.mountain, u);
+  const cloud = lerpColor(k0.cloud, k1.cloud, u);
+  const nightAlpha = k0.nightAlpha + (k1.nightAlpha - k0.nightAlpha) * u;
+  return { bands, mountain, cloud, nightAlpha };
+}
+
+interface SeasonPalette {
+  grassTop: string;
+  grassShade: string;
+  treePrimary: string;
+  treeHighlight: string;
+  pathTint: string;
+  snowCapAlpha: number;
+}
+
+const SEASON_PALETTES: SeasonPalette[] = [
+  // 0: Spring (Sakura & Fresh Green)
+  {
+    grassTop: '#2d6a4f',
+    grassShade: '#40916c',
+    treePrimary: '#f472b6',
+    treeHighlight: '#fbcfe8',
+    pathTint: '#2d3345',
+    snowCapAlpha: 0,
+  },
+  // 1: Summer (Lush Emerald)
+  {
+    grassTop: '#15803d',
+    grassShade: '#22c55e',
+    treePrimary: '#166534',
+    treeHighlight: '#4ade80',
+    pathTint: '#2d3345',
+    snowCapAlpha: 0,
+  },
+  // 2: Autumn (Amber & Maple Crimson)
+  {
+    grassTop: '#854d0e',
+    grassShade: '#ca8a04',
+    treePrimary: '#c2410c',
+    treeHighlight: '#fb923c',
+    pathTint: '#362e38',
+    snowCapAlpha: 0,
+  },
+  // 3: Winter (Frost & Snow)
+  {
+    grassTop: '#cbd5e1',
+    grassShade: '#f8fafc',
+    treePrimary: '#64748b',
+    treeHighlight: '#e2e8f0',
+    pathTint: '#334155',
+    snowCapAlpha: 1,
+  },
+];
+
+function sampleSeason(seasonPhase: number) {
+  const s = ((seasonPhase % 4) + 4) % 4;
+  const i0 = Math.floor(s);
+  const i1 = (i0 + 1) % 4;
+  const u = s - i0;
+  const p0 = SEASON_PALETTES[i0];
+  const p1 = SEASON_PALETTES[i1];
+  return {
+    seasonIdx: i0,
+    nextSeasonIdx: i1,
+    blend: u,
+    grassTop: lerpColor(p0.grassTop, p1.grassTop, u),
+    grassShade: lerpColor(p0.grassShade, p1.grassShade, u),
+    treePrimary: lerpColor(p0.treePrimary, p1.treePrimary, u),
+    treeHighlight: lerpColor(p0.treeHighlight, p1.treeHighlight, u),
+    pathTint: lerpColor(p0.pathTint, p1.pathTint, u),
+    snowCapAlpha: p0.snowCapAlpha + (p1.snowCapAlpha - p0.snowCapAlpha) * u,
+  };
+}
 
 function drawPixelSymbol(
   ctx: CanvasRenderingContext2D,
@@ -1232,6 +1412,7 @@ export const TitleView: React.FC<TitleViewProps> = ({
     });
 
     const particles: TitleParticle[] = [];
+    const weatherParticles: AmbientWeatherParticle[] = [];
     const orbs: TitleStarOrb[] = [];
     const stars = Array.from({ length: 34 }, (_, i) => ({
       x: ((i * 73) % (CANVAS_W - 20)) + 10,
@@ -1239,6 +1420,16 @@ export const TitleView: React.FC<TitleViewProps> = ({
       phase: i * 0.9,
       size: i % 5 === 0 ? 2 : 1,
     }));
+    const clouds = Array.from({ length: 4 }, (_, i) => ({
+      x: i * 145 + Math.random() * 40,
+      y: 26 + (i % 2) * 18 + Math.random() * 8,
+      w: 36 + (i % 3) * 12,
+      speed: 0.14 + (i % 2) * 0.06,
+    }));
+
+    // Random starting time of day (0..1) and season (0..4) each visit
+    let dayPhase = Math.random();
+    let seasonPhase = Math.random() * 4;
 
     const spawnBurst = (
       x: number,
@@ -1384,6 +1575,97 @@ export const TitleView: React.FC<TitleViewProps> = ({
       const dt = Math.min(48, now - lastTime);
       lastTime = now;
       clock += dt;
+
+      // Advance time-of-day (~42s full day/night cycle) & seasons (~26s per season)
+      dayPhase = (dayPhase + dt / 42000) % 1;
+      seasonPhase = (seasonPhase + dt / 26000) % 4;
+      const skyNow = sampleSky(dayPhase);
+      const seasonNow = sampleSeason(seasonPhase);
+
+      // Update drifting clouds
+      clouds.forEach((c) => {
+        c.x += c.speed * (dt / 16);
+        if (c.x > CANVAS_W + 40) c.x = -c.w - 20;
+      });
+
+      // Spawn leisurely seasonal weather particles
+      const activeSeason =
+        seasonNow.blend > 0.5 ? seasonNow.nextSeasonIdx : seasonNow.seasonIdx;
+      if (weatherParticles.length < 36) {
+        if (activeSeason === 0 && Math.random() < 0.22 * (dt / 16)) {
+          // Spring: Sakura petals
+          weatherParticles.push({
+            x: Math.random() * (CANVAS_W + 40) - 20,
+            y: -4,
+            vx: 0.28 + Math.random() * 0.35,
+            vy: 0.32 + Math.random() * 0.28,
+            phase: Math.random() * Math.PI * 2,
+            color: Math.random() < 0.5 ? '#fbcfe8' : '#f9a8d4',
+            size: 2,
+            kind: 'sakura',
+            life: 6000,
+            maxLife: 6000,
+          });
+        } else if (
+          activeSeason === 1 &&
+          skyNow.nightAlpha > 0.45 &&
+          Math.random() < 0.14 * (dt / 16)
+        ) {
+          // Summer Night: Fireflies
+          weatherParticles.push({
+            x: 20 + Math.random() * (CANVAS_W - 40),
+            y: 122 + Math.random() * 68,
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: -0.15 + (Math.random() - 0.5) * 0.25,
+            phase: Math.random() * Math.PI * 2,
+            color: '#bef264',
+            size: 2,
+            kind: 'firefly',
+            life: 2400 + Math.random() * 1400,
+            maxLife: 3800,
+          });
+        } else if (activeSeason === 2 && Math.random() < 0.2 * (dt / 16)) {
+          // Autumn: Falling leaves
+          const leafColors = ['#f97316', '#ef4444', '#facc15'];
+          weatherParticles.push({
+            x: Math.random() * (CANVAS_W + 40) - 20,
+            y: -4,
+            vx: -0.22 - Math.random() * 0.35,
+            vy: 0.38 + Math.random() * 0.32,
+            phase: Math.random() * Math.PI * 2,
+            color: leafColors[Math.floor(Math.random() * leafColors.length)],
+            size: Math.random() < 0.5 ? 2 : 3,
+            kind: 'leaf',
+            life: 5500,
+            maxLife: 5500,
+          });
+        } else if (activeSeason === 3 && Math.random() < 0.34 * (dt / 16)) {
+          // Winter: Snowflakes
+          weatherParticles.push({
+            x: Math.random() * (CANVAS_W + 20) - 10,
+            y: -4,
+            vx: (Math.random() - 0.5) * 0.25,
+            vy: 0.34 + Math.random() * 0.35,
+            phase: Math.random() * Math.PI * 2,
+            color: Math.random() < 0.65 ? '#ffffff' : '#e0f2fe',
+            size: Math.random() < 0.75 ? 2 : 3,
+            kind: 'snow',
+            life: 6200,
+            maxLife: 6200,
+          });
+        }
+      }
+
+      for (let i = weatherParticles.length - 1; i >= 0; i--) {
+        const w = weatherParticles[i];
+        w.phase += 0.004 * dt;
+        w.x += (w.vx + Math.sin(w.phase) * 0.22) * (dt / 16);
+        w.y += w.vy * (dt / 16);
+        w.life -= dt;
+        if (w.life <= 0 || w.y > CANVAS_H - 10) {
+          weatherParticles.splice(i, 1);
+        }
+      }
 
       // Update particles & playful star orbs
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -1564,36 +1846,98 @@ export const TitleView: React.FC<TitleViewProps> = ({
       if (ctx) {
         ctx.imageSmoothingEnabled = false;
 
-        // Twilight sky gradient bands
-        const skyBands = ['#0b1021', '#111936', '#18244a', '#24325e', '#333b68'];
+        // Dynamic Sky Gradient Bands (Dawn -> Day -> Sunset -> Night)
         const bandH = 30;
-        skyBands.forEach((col, idx) => {
+        skyNow.bands.forEach((col, idx) => {
           ctx.fillStyle = col;
           ctx.fillRect(0, idx * bandH, CANVAS_W, bandH + 1);
         });
 
-        // Twinkling stars & crescent moon
-        stars.forEach((s) => {
-          const alpha = 0.35 + 0.65 * Math.abs(Math.sin(clock / 650 + s.phase));
-          ctx.fillStyle = `rgba(248, 250, 252, ${alpha.toFixed(2)})`;
-          ctx.fillRect(s.x, s.y, s.size, s.size);
-        });
-        ctx.fillStyle = '#fef08a';
-        ctx.fillRect(420, 22, 18, 18);
-        ctx.fillStyle = '#0b1021';
-        ctx.fillRect(428, 22, 10, 12);
+        // Twinkling Stars (fade in during dusk/night)
+        if (skyNow.nightAlpha > 0.08) {
+          stars.forEach((s) => {
+            const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(clock / 650 + s.phase));
+            const alpha = twinkle * skyNow.nightAlpha;
+            ctx.fillStyle = `rgba(248, 250, 252, ${alpha.toFixed(2)})`;
+            ctx.fillRect(s.x, s.y, s.size, s.size);
+          });
+        }
 
-        // Distant mountains
-        ctx.fillStyle = '#19223b';
+        // Sun Arc (Dawn -> Sunset: dayPhase 0.0..0.66)
+        if (dayPhase < 0.66) {
+          const sunT = dayPhase / 0.66;
+          const sunX = Math.round(48 + sunT * (CANVAS_W - 96));
+          const sunY = Math.round(108 - Math.sin(sunT * Math.PI) * 82);
+          ctx.fillStyle = 'rgba(253, 224, 71, 0.22)';
+          ctx.fillRect(sunX - 13, sunY - 13, 26, 26);
+          ctx.fillStyle = dayPhase > 0.52 || dayPhase < 0.08 ? '#fb923c' : '#fde047';
+          ctx.fillRect(sunX - 9, sunY - 9, 18, 18);
+          ctx.fillStyle = '#fef9c3';
+          ctx.fillRect(sunX - 5, sunY - 5, 10, 10);
+        }
+
+        // Crescent Moon Arc (Dusk -> Dawn: dayPhase 0.64..1.0)
+        if (dayPhase >= 0.62) {
+          const moonT = (dayPhase - 0.62) / 0.38;
+          const moonX = Math.round(70 + moonT * (CANVAS_W - 140));
+          const moonY = Math.round(98 - Math.sin(moonT * Math.PI) * 72);
+          ctx.fillStyle = '#fef08a';
+          ctx.fillRect(moonX - 8, moonY - 8, 16, 16);
+          ctx.fillStyle = skyNow.bands[0];
+          ctx.fillRect(moonX - 2, moonY - 8, 10, 11);
+        }
+
+        // Drifting Pixel Clouds (tinted by sky light)
+        clouds.forEach((c) => {
+          const cx = Math.round(c.x);
+          const cy = Math.round(c.y);
+          ctx.fillStyle = skyNow.cloud;
+          ctx.globalAlpha = skyNow.nightAlpha > 0.6 ? 0.35 : 0.85;
+          ctx.fillRect(cx, cy, c.w, 8);
+          ctx.fillRect(cx + 6, cy - 5, c.w - 14, 6);
+          ctx.globalAlpha = 1;
+        });
+
+        // Distant mountains (season/night tinted + winter snow caps)
+        ctx.fillStyle = skyNow.mountain;
         for (let mx = -10; mx < CANVAS_W + 40; mx += 64) {
           ctx.beginPath();
           ctx.moveTo(mx, 142);
           ctx.lineTo(mx + 32, 92);
           ctx.lineTo(mx + 64, 142);
           ctx.fill();
+          if (seasonNow.snowCapAlpha > 0.15) {
+            ctx.fillStyle = `rgba(241, 245, 249, ${(seasonNow.snowCapAlpha * 0.85).toFixed(2)})`;
+            ctx.beginPath();
+            ctx.moveTo(mx + 20, 110);
+            ctx.lineTo(mx + 32, 92);
+            ctx.lineTo(mx + 44, 110);
+            ctx.fill();
+            ctx.fillStyle = skyNow.mountain;
+          }
         }
 
-        // Left: Royal Castle silhouette
+        // Seasonal Trees along backdrop
+        const drawSeasonTree = (tx: number, ty: number, scale = 1) => {
+          const w = Math.round(18 * scale);
+          const h = Math.round(16 * scale);
+          ctx.fillStyle = '#4a2e1b';
+          ctx.fillRect(tx - 2, ty - 10, 5, 12);
+          ctx.fillStyle = seasonNow.treePrimary;
+          ctx.fillRect(tx - w / 2, ty - 10 - h, w, h);
+          ctx.fillStyle = seasonNow.treeHighlight;
+          ctx.fillRect(tx - w / 2 + 2, ty - 10 - h + 2, w - 6, Math.max(4, h / 2));
+          if (seasonNow.snowCapAlpha > 0.2) {
+            ctx.fillStyle = `rgba(248, 250, 252, ${seasonNow.snowCapAlpha.toFixed(2)})`;
+            ctx.fillRect(tx - w / 2 + 1, ty - 11 - h, w - 2, 4);
+          }
+        };
+        drawSeasonTree(100, 142, 1.0);
+        drawSeasonTree(156, 142, 0.85);
+        drawSeasonTree(358, 142, 0.95);
+        drawSeasonTree(408, 142, 0.85);
+
+        // Left: Royal Castle silhouette with warm evening/night windows
         ctx.fillStyle = '#242b42';
         ctx.fillRect(24, 78, 56, 66);
         ctx.fillRect(16, 66, 16, 78);
@@ -1603,8 +1947,16 @@ export const TitleView: React.FC<TitleViewProps> = ({
         ctx.fillRect(14, 58, 20, 8);
         ctx.fillRect(70, 58, 20, 8);
         ctx.fillRect(40, 44, 24, 10);
+        if (seasonNow.snowCapAlpha > 0.15) {
+          ctx.fillStyle = `rgba(248, 250, 252, ${seasonNow.snowCapAlpha.toFixed(2)})`;
+          ctx.fillRect(14, 56, 20, 3);
+          ctx.fillRect(70, 56, 20, 3);
+          ctx.fillRect(40, 42, 24, 3);
+        }
         ctx.fillStyle = '#facc15';
         ctx.fillRect(50, 36, 4, 8);
+        const winColor = skyNow.nightAlpha > 0.35 ? '#fde047' : '#64748b';
+        ctx.fillStyle = winColor;
         ctx.fillRect(22, 76, 4, 6);
         ctx.fillRect(78, 76, 4, 6);
         ctx.fillRect(49, 68, 6, 8);
@@ -1613,18 +1965,28 @@ export const TitleView: React.FC<TitleViewProps> = ({
         ctx.fillStyle = '#1b1d2b';
         ctx.fillRect(424, 82, 74, 62);
         ctx.fillRect(436, 68, 50, 76);
+        if (seasonNow.snowCapAlpha > 0.15) {
+          ctx.fillStyle = `rgba(226, 232, 240, ${(seasonNow.snowCapAlpha * 0.9).toFixed(2)})`;
+          ctx.fillRect(436, 66, 50, 3);
+          ctx.fillRect(424, 80, 12, 3);
+          ctx.fillRect(486, 80, 12, 3);
+        }
         ctx.fillStyle = '#090b10';
         ctx.fillRect(448, 98, 26, 46);
-        const runeGlow = 0.5 + 0.5 * Math.sin(clock / 320);
-        ctx.fillStyle = `rgba(168, 85, 247, ${runeGlow.toFixed(2)})`;
+        const runeGlow = (0.35 + 0.5 * skyNow.nightAlpha) * (0.55 + 0.45 * Math.sin(clock / 320));
+        ctx.fillStyle = `rgba(168, 85, 247, ${Math.min(1, runeGlow).toFixed(2)})`;
         ctx.fillRect(432, 96, 4, 16);
         ctx.fillRect(486, 96, 4, 16);
         ctx.fillRect(458, 78, 6, 6);
 
-        // Scenic ground path
-        ctx.fillStyle = '#1b4332';
+        // Seasonal Grass & Scenic Stone Path
+        ctx.fillStyle = seasonNow.grassTop;
         ctx.fillRect(0, 140, CANVAS_W, 12);
-        ctx.fillStyle = '#2d3345';
+        ctx.fillStyle = seasonNow.grassShade;
+        for (let gx = 0; gx < CANVAS_W; gx += 18) {
+          ctx.fillRect(gx + 2, 142, 8, 3);
+        }
+        ctx.fillStyle = seasonNow.pathTint;
         ctx.fillRect(0, 152, CANVAS_W, 72);
         ctx.fillStyle = '#212636';
         for (let gx = 0; gx < CANVAS_W; gx += 24) {
@@ -1634,11 +1996,15 @@ export const TitleView: React.FC<TitleViewProps> = ({
         ctx.fillStyle = '#141722';
         ctx.fillRect(0, 208, CANVAS_W, 16);
 
-        // Flickering path torches
+        // Path torches (subtle in day, warm glow at dusk/night)
         [118, 258, 392].forEach((tx, idx) => {
           ctx.fillStyle = '#5c2d16';
           ctx.fillRect(tx, 124, 4, 18);
           const flk = Math.sin(clock / 90 + idx * 2) > 0 ? 1 : 0;
+          if (skyNow.nightAlpha > 0.25) {
+            ctx.fillStyle = `rgba(251, 146, 60, ${(skyNow.nightAlpha * 0.22).toFixed(2)})`;
+            ctx.fillRect(tx - 6, 111, 16, 16);
+          }
           ctx.fillStyle = '#f97316';
           ctx.fillRect(tx - 1, 117 - flk, 6, 7);
           ctx.fillStyle = '#facc15';
@@ -1709,6 +2075,18 @@ export const TitleView: React.FC<TitleViewProps> = ({
         particles.forEach((p) => {
           ctx.fillStyle = p.color;
           ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+        });
+
+        // Seasonal ambient weather (sakura petals, summer night fireflies, autumn leaves, winter snow)
+        weatherParticles.forEach((w) => {
+          if (w.kind === 'firefly') {
+            const pulse = 0.25 + 0.75 * Math.abs(Math.sin(w.phase * 2.2));
+            ctx.fillStyle = `rgba(190, 242, 100, ${pulse.toFixed(2)})`;
+            ctx.fillRect(Math.round(w.x), Math.round(w.y), 2, 2);
+          } else {
+            ctx.fillStyle = w.color;
+            ctx.fillRect(Math.round(w.x), Math.round(w.y), w.size, w.size);
+          }
         });
       }
 

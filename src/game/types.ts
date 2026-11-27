@@ -325,6 +325,19 @@ export type EventOutcomeKind =
   | 'ALCHEMIST_SELL'
   | 'GAMBLE_HIGH'
   | 'GAMBLE_SAFE'
+  | 'ARMORY_WEAPON'
+  | 'ARMORY_SALVAGE'
+  | 'WISH_POWER'
+  | 'WISH_FORTUNE'
+  | 'WISH_MIRACLE'
+  | 'TRIAL_MIDBOSS'
+  | 'DRAGON_BLESS'
+  | 'VAULT_PLUNDER'
+  | 'VAULT_SAFE'
+  | 'RIFT_POWER'
+  | 'RIFT_WARP'
+  | 'PACT_BERSERK'
+  | 'PACT_VITALITY'
   | 'SKIP';
 
 export interface DungeonEventOption {
@@ -351,7 +364,12 @@ export type InstantEventKind =
   | 'FALLING_ROCKS'
   | 'BLESSED_STATUE'
   | 'STRAY_SLIME'
-  | 'GEM_VEIN';
+  | 'GEM_VEIN'
+  | 'METEOR_BLESSING'
+  | 'TREASURE_GOBLIN'
+  | 'LOST_SHRINE_REVIVE'
+  | 'ANCIENT_SUPPLY_CACHE'
+  | 'CHAOS_ROULETTE';
 
 export interface InstantEventDef {
   id: string;
