@@ -20,6 +20,7 @@ interface SummaryViewProps {
   newlyUnlockedAchievements?: AchievementDef[];
   allAchievementsCompleted?: boolean;
   endlessJustUnlocked?: boolean;
+  abyssJustUnlocked?: boolean;
   trueEndgameJustUnlocked?: boolean;
   canReincarnate?: boolean;
   canAutoRepeat?: boolean;
@@ -45,6 +46,7 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
   newlyUnlockedAchievements,
   allAchievementsCompleted,
   endlessJustUnlocked,
+  abyssJustUnlocked,
   trueEndgameJustUnlocked,
   canReincarnate,
   canAutoRepeat,
@@ -172,15 +174,28 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
           </div>
         )}
 
-        {/* True Endgame (Endless 100F+) Unlocked Banner */}
+        {/* Abyss Tab (Endless 10F+) Unlocked Banner */}
+        {abyssJustUnlocked && (
+          <div className="bg-[#17122b] border-2 border-purple-400 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-purple-300 font-pixel text-base">
+              <Sparkles className="w-4 h-4 shrink-0 text-amber-300" />
+              <span>新強化タブ解放：無限回廊 10F 到達！「深淵強化」解禁！</span>
+            </div>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              無限回廊の10階を突破しました！拠点に「深淵強化」タブが解放され、転生してもリセットされない5系統の恒久強化（勇者火力・耐久軽減・味方強化・魂脈回復・星冠速度）を鍛えられるようになりました！
+            </p>
+          </div>
+        )}
+
+        {/* True Endgame (Endless 50F+) Unlocked Banner */}
         {trueEndgameJustUnlocked && (
           <div className="bg-[#1c102b] border-2 border-amber-400 p-4 space-y-2">
             <div className="flex items-center gap-2 text-amber-300 font-pixel text-base">
               <Sparkles className="w-4 h-4 shrink-0 text-purple-300" />
-              <span>真のエンドコンテンツ解放：無限回廊 100F 突破！</span>
+              <span>真のエンドコンテンツ解放：無限回廊 50F 突破！</span>
             </div>
             <p className="text-xs text-slate-200 leading-relaxed">
-              深淵の100階を突破しました！①永続強化「裏実績（全6種）」②鍛冶屋限定の究極装備4種
+              深淵の50階を突破しました！①永続強化「裏実績（全6種）」②鍛冶屋限定の究極装備4種
               ③通常スキルツリー全開放後に大量SPを消費して圧倒的な力と「32倍速(10SP) / 64倍速(20SP)」を解放できる新スキルツリー「深淵超越の道」が解禁されました！
             </p>
           </div>

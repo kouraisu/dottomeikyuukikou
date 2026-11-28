@@ -3,6 +3,7 @@ import { Award, Compass, HelpCircle, History, Home, Lock, Repeat, RotateCcw, Spa
 import dungeonDepthsImg from '../assets/images/pixel_dungeon_depths_1795345080012.jpg';
 import shrineAltarImg from '../assets/images/pixel_sanctuary_altar_1795345079265.jpg';
 import {
+  ABYSS_UPGRADES,
   ACHIEVEMENTS,
   ALLIES,
   areAllAchievementsUnlocked,
@@ -15,12 +16,16 @@ import {
   CREST_EXCHANGE_OPTIONS,
   CUSTOM_ALLY_ID,
   DUNGEON_EVENTS,
+  ENDLESS_ABYSS_TAB_FLOOR,
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
+  ENDLESS_TRUE_ENDGAME_FLOOR,
   ENEMIES,
   ENGRAVING_UNLOCK_LOOP,
   FEATURE_UNLOCKS,
   FORGE_RECIPES,
+  getAbyssUpgradeBonuses,
+  getAbyssUpgradeCost,
   getAchievementBonuses,
   getActiveSynergies,
   getAllyDef,
@@ -76,6 +81,7 @@ import {
   ITEM_ENGRAVINGS,
   ITEMS,
   MATERIAL_INFO,
+  MAX_ABYSS_UPGRADE_LEVEL,
   MAX_ITEM_REFINE,
   MAX_POUCH_SLOTS,
   SECRET_ACHIEVEMENTS,
@@ -85,6 +91,7 @@ import {
   ULTIMATE_ITEM_IDS,
 } from '../game/data';
 import {
+  AbyssUpgradeId,
   AutoEquipPlaystyle,
   EventChoiceMode,
   ItemCategory,
@@ -136,6 +143,7 @@ interface TownViewProps {
   onUnlockSkill: (skillId: string) => void;
   onUpgradeSpMastery: (steps?: number) => void;
   onResetSkills: () => void;
+  onUpgradeAbyss: (id: AbyssUpgradeId) => void;
   onSelectStage: (stageId: number) => void;
   onSelectPracticeLoop: (loop: number | null) => void;
   onChangeEventMode: (mode: EventChoiceMode) => void;
@@ -219,6 +227,7 @@ export const TownView: React.FC<TownViewProps> = ({
   onUnlockSkill,
   onUpgradeSpMastery,
   onResetSkills,
+  onUpgradeAbyss,
   onSelectStage,
   onSelectPracticeLoop,
   onChangeEventMode,
@@ -271,6 +280,7 @@ export const TownView: React.FC<TownViewProps> = ({
     () => getSkillTreeBonuses(save.unlockedSkills, save.spMasteryLevel),
     [save.unlockedSkills, save.spMasteryLevel]
   );
+  const abyssBonus = useMemo(() => getAbyssUpgradeBonuses(save), [save]);
   const selectedStage = STAGES.find((s) => s.id === save.selectedStageId) ?? STAGES[0];
   const heroTrainCost = getHeroTrainStepCost(save.heroUpgradeLevel);
   const heroMilestoneSteps = getNextHeroMilestoneSteps(save.heroUpgradeLevel);
@@ -590,7 +600,9 @@ export const TownView: React.FC<TownViewProps> = ({
                 {unlockDef.label}
               </h2>
               <p className="text-sm text-sky-300 font-medium">
-                {unlockDef.requiredStageName} を踏破すると錠前が解除されます
+                {activeTab === 'ABYSS'
+                  ? `${unlockDef.requiredStageName} に到達すると錠前が解除されます（現在 ${save.bestEndlessFloor ?? 0} / ${ENDLESS_ABYSS_TAB_FLOOR}F）`
+                  : `${unlockDef.requiredStageName} を踏破すると錠前が解除されます`}
               </p>
             </div>
             <p className="max-w-md mx-auto text-xs text-slate-300 leading-relaxed bg-[#12151d] border border-[#2b3040] p-3.5">
@@ -1883,7 +1895,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 })}
               </div>
 
-              {/* TRANSCENDENT SKILL TREE (Hidden until Endless 30F, Unlocked at 100F+) */}
+              {/* TRANSCENDENT SKILL TREE (Hidden until Endless 15F, Unlocked at 50F+) */}
               {trueEndgameVisible && (() => {
                 const transNodes = SKILL_TREE.filter((n) => n.branch === 'TRANSCENDENT');
                 const t1 = transNodes.filter((n) => n.tier === 1);
@@ -1936,7 +1948,7 @@ export const TownView: React.FC<TownViewProps> = ({
                           className="w-full py-1.5 px-2 text-[11px] font-bold bg-purple-500 hover:bg-purple-400 text-white disabled:bg-[#222736] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
                         >
                           {!trueEndgameUnlocked
-                            ? '無限回廊100F突破で解放'
+                            ? `無限回廊${ENDLESS_TRUE_ENDGAME_FLOOR}F突破で解放`
                             : !baseSkillProgress.completed
                               ? '通常スキル全習得で解放'
                               : !reqMet
@@ -1967,22 +1979,22 @@ export const TownView: React.FC<TownViewProps> = ({
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-300 mt-0.5">
-                          無限回廊100F突破＆通常スキルツリー全開放で解放。大量のSP（10〜30SP）を要する代わりに、32倍速・64倍速や規格外の神域強化を得られます。
+                          無限回廊{ENDLESS_TRUE_ENDGAME_FLOOR}F突破＆通常スキルツリー全開放で解放。大量のSP（10〜30SP）を要する代わりに、32倍速・64倍速や規格外の神域強化を得られます。
                         </p>
                       </div>
                       <span className="font-num text-xs font-bold text-amber-300 shrink-0">
                         {!trueEndgameUnlocked
-                          ? `最高記録 ${save.bestEndlessFloor ?? 0} / 100F · 通常 ${baseSkillProgress.unlockedCount}/${baseSkillProgress.totalRequired}`
+                          ? `最高記録 ${save.bestEndlessFloor ?? 0} / ${ENDLESS_TRUE_ENDGAME_FLOOR}F · 通常 ${baseSkillProgress.unlockedCount}/${baseSkillProgress.totalRequired}`
                           : !baseSkillProgress.completed
-                            ? `100F突破済 · 通常ツリー ${baseSkillProgress.unlockedCount}/${baseSkillProgress.totalRequired}`
-                            : '開放済（100F突破＆全習得）'}
+                            ? `${ENDLESS_TRUE_ENDGAME_FLOOR}F突破済 · 通常ツリー ${baseSkillProgress.unlockedCount}/${baseSkillProgress.totalRequired}`
+                            : `開放済（${ENDLESS_TRUE_ENDGAME_FLOOR}F突破＆全習得）`}
                       </span>
                     </div>
 
                     {!trueEndgameUnlocked ? (
                       <div className="bg-[#0e1018] border border-[#2a243b] px-4 py-5 text-center space-y-1.5">
                         <div className="text-xs font-bold text-purple-200">
-                          【無限】終わらぬ深淵回廊 100F 到達 ＆ 通常スキルツリー全習得で解放されます
+                          【無限】終わらぬ深淵回廊 {ENDLESS_TRUE_ENDGAME_FLOOR}F 到達 ＆ 通常スキルツリー全習得で解放されます
                         </div>
                         <div className="text-[11px] text-slate-400">
                           「極限加速・32倍速 (10SP)」「神速領域・64倍速 (20SP)」や全ステータス+300%の真奥義がここに眠っています。
@@ -1994,7 +2006,7 @@ export const TownView: React.FC<TownViewProps> = ({
                     ) : !baseSkillProgress.completed ? (
                       <div className="bg-[#0e1018] border border-purple-500/40 px-4 py-5 text-center space-y-2">
                         <div className="text-xs font-bold text-amber-300">
-                          無限回廊100F突破達成！解放には通常スキルツリーをすべて開放する必要があります
+                          無限回廊{ENDLESS_TRUE_ENDGAME_FLOOR}F突破達成！解放には通常スキルツリーをすべて開放する必要があります
                         </div>
                         <div className="text-[11px] text-slate-300">
                           「快適・便利の道」および「戦闘4系統（各排他選択はどちらか1つ）」をすべて習得すると開放されます。
@@ -2239,7 +2251,7 @@ export const TownView: React.FC<TownViewProps> = ({
               })}
             </div>
 
-            {/* Secret Endgame Achievements (Hidden until Endless 30F, Unlocked at 100F+) */}
+            {/* Secret Endgame Achievements (Hidden until Endless 15F, Unlocked at 50F+) */}
             {trueEndgameVisible && (
             <div
               className={`border-2 p-4 space-y-3 ${
@@ -2253,24 +2265,24 @@ export const TownView: React.FC<TownViewProps> = ({
                   <div className="flex items-center gap-2">
                     {!trueEndgameUnlocked && <Lock className="w-4 h-4 text-purple-300 shrink-0" />}
                     <span className="font-pixel text-base text-purple-300">
-                      裏実績（無限回廊100F突破チャレンジ · 全{achBonus.secretTotalCount}種）
+                      裏実績（無限回廊{ENDLESS_TRUE_ENDGAME_FLOOR}F突破チャレンジ · 全{achBonus.secretTotalCount}種）
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 mt-0.5">
-                    無限回廊100Fを突破した冒険者にのみ開示される究極の実績群。通常実績12/12枠とは別枠で永続ボーナスが加算されます。
+                    無限回廊{ENDLESS_TRUE_ENDGAME_FLOOR}Fを突破した冒険者にのみ開示される究極の実績群。通常実績12/12枠とは別枠で永続ボーナスが加算されます。
                   </p>
                 </div>
                 <span className="font-num text-sm font-bold text-amber-300 shrink-0">
                   {trueEndgameUnlocked
                     ? `${achBonus.secretUnlockedCount} / ${achBonus.secretTotalCount} 達成`
-                    : `現在 ${save.bestEndlessFloor ?? 0} / 100F`}
+                    : `現在 ${save.bestEndlessFloor ?? 0} / ${ENDLESS_TRUE_ENDGAME_FLOOR}F`}
                 </span>
               </div>
 
               {!trueEndgameUnlocked ? (
                 <div className="bg-[#0e1018] border border-[#2a243b] px-4 py-5 text-center space-y-1">
                   <div className="text-xs font-bold text-purple-200">
-                    【無限】終わらぬ深淵回廊 100F 到達で裏実績が開放されます
+                    【無限】終わらぬ深淵回廊 {ENDLESS_TRUE_ENDGAME_FLOOR}F 到達で裏実績が開放されます
                   </div>
                   <div className="text-[11px] text-slate-400">
                     開放後、100F・150F・200F踏破や10,000ダメージ達成などの超高難度ミッションに挑めます。
@@ -2665,7 +2677,7 @@ export const TownView: React.FC<TownViewProps> = ({
                       const found = (save.discoveredItems ?? []).includes(it.id);
                       const isCraftOnly = FORGE_RECIPES.some((r) => r.resultItemId === it.id);
                       const hintText = it.isForgeExclusive
-                        ? '無限回廊100F突破後・対応最強装備＋無限限定パーツ3種で鍛造'
+                        ? `無限回廊${ENDLESS_TRUE_ENDGAME_FLOOR}F突破後・対応最強装備＋無限限定パーツ3種で鍛造`
                         : it.isUltimate
                           ? '強化ボスラッシュ踏破(2%)・裏ダンジョン(0.5%)・無限回廊15F以降ボス(0.8%)で超低確率ドロップ'
                         : it.rarity === 'EPIC'
@@ -2834,7 +2846,7 @@ export const TownView: React.FC<TownViewProps> = ({
                               </span>
                               {isExclusive && (
                                 <span className="px-1.5 py-0.5 text-[10px] font-bold bg-purple-900/90 border border-purple-400/70 text-purple-200 shrink-0">
-                                  鍛冶限定·100F
+                                  鍛冶限定·{ENDLESS_TRUE_ENDGAME_FLOOR}F
                                 </span>
                               )}
                             </div>
@@ -3530,6 +3542,161 @@ export const TownView: React.FC<TownViewProps> = ({
             )}
           </section>
         )}
+
+        {/* TAB 8: ABYSS ENHANCEMENT (Unlocked at Endless 10F, persists across reincarnations) */}
+        {tabUnlocked && activeTab === 'ABYSS' && (
+          <section className="pixel-panel p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#2b3040] pb-3.5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-pixel text-xl text-purple-300">
+                    深淵強化（転生永続引き継ぎ）
+                  </h2>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-950 border border-purple-400/70 text-purple-200">
+                    無限10F達成特典
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  無限回廊10F到達で開かれた深淵の祭壇です。ここで鍛えた強化レベルは<span className="text-amber-300 font-bold">転生（周回リセット）を行っても永続で引き継がれ</span>、通常ステージと無限回廊50F以降の攻略を強力に支えます。
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[11px] text-slate-400">深淵強化合計</div>
+                <div className="font-num text-xl font-bold text-purple-300">
+                  Lv.{abyssBonus.totalLevels} / {ABYSS_UPGRADES.length * MAX_ABYSS_UPGRADE_LEVEL}
+                </div>
+              </div>
+            </div>
+
+            <div className="pixel-slot p-3.5 space-y-2 border-purple-500/50 bg-[#151123]">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-purple-200">現在発動中の深淵強化ボーナス</span>
+                <span className="font-num text-[11px] text-amber-300">
+                  所持: {save.gold.toLocaleString()}G · 証 {save.clearCrests} · 鉄 {save.materials.iron_ore} · 魔石 {save.materials.magic_stone} · 古文書 {save.materials.ancient_scroll}
+                </span>
+              </div>
+              <div className="text-[11px] font-num text-emerald-300 leading-relaxed">
+                {[
+                  abyssBonus.atkPct > 0 ? `勇者攻撃+${abyssBonus.atkPct}%` : '',
+                  abyssBonus.hpPct > 0 ? `勇者HP+${abyssBonus.hpPct}%` : '',
+                  abyssBonus.defPct > 0 ? `勇者防御+${abyssBonus.defPct}%` : '',
+                  abyssBonus.dmgReductionPct > 0 ? `被ダメ-${abyssBonus.dmgReductionPct}%` : '',
+                  abyssBonus.critPct > 0 ? `会心+${abyssBonus.critPct}%` : '',
+                  abyssBonus.critDmgPct > 0 ? `会心ダメ+${abyssBonus.critDmgPct}%` : '',
+                  abyssBonus.allyPowerPct > 0 ? `味方攻回+${abyssBonus.allyPowerPct}%` : '',
+                  abyssBonus.allyHpPct > 0 ? `味方HP+${abyssBonus.allyHpPct}%` : '',
+                  abyssBonus.allyDefPct > 0 ? `味方防御+${abyssBonus.allyDefPct}%` : '',
+                  abyssBonus.roomHeal > 0 ? `毎階回復+${abyssBonus.roomHeal}` : '',
+                  abyssBonus.lifestealPct > 0 ? `全員吸血+${abyssBonus.lifestealPct}%` : '',
+                  abyssBonus.consumablePowerPct > 0 ? `消耗品+${abyssBonus.consumablePowerPct}%` : '',
+                  abyssBonus.spdPct > 0 ? `勇者速度+${abyssBonus.spdPct}%` : '',
+                  abyssBonus.allySpdPct > 0 ? `味方速度+${abyssBonus.allySpdPct}%` : '',
+                  abyssBonus.goldPct > 0 ? `獲得G+${abyssBonus.goldPct}%` : '',
+                  abyssBonus.dropPct > 0 ? `ドロップ+${abyssBonus.dropPct}%` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || 'まだ強化されていません。下の5つの深淵力を強化してみましょう！'}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ABYSS_UPGRADES.map((upg) => {
+                const lv = (save.abyssUpgrades ?? {})[upg.id] ?? 0;
+                const isMax = lv >= MAX_ABYSS_UPGRADE_LEVEL;
+                const cost = getAbyssUpgradeCost(upg.id, lv);
+                const hasGold = save.gold >= cost.gold;
+                const hasCrests = save.clearCrests >= cost.crests;
+                const hasIron = save.materials.iron_ore >= cost.iron;
+                const hasStone = save.materials.magic_stone >= cost.stone;
+                const hasScroll = save.materials.ancient_scroll >= cost.scroll;
+                const canAfford = !isMax && hasGold && hasCrests && hasIron && hasStone && hasScroll;
+
+                return (
+                  <div
+                    key={upg.id}
+                    className={`pixel-slot p-4 flex flex-col justify-between gap-3 ${
+                      lv > 0 ? 'border-purple-400/70 bg-[#171225]' : ''
+                    }`}
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-12 h-12 bg-[#12151d] border-2 flex items-center justify-center shrink-0"
+                          style={{ borderColor: upg.color }}
+                        >
+                          <PixelSprite id={upg.spriteId} size={32} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-sm text-purple-100 truncate">
+                              {upg.name}
+                            </span>
+                            <span
+                              className={`font-num text-xs font-bold shrink-0 ${
+                                isMax ? 'text-emerald-300' : 'text-amber-300'
+                              }`}
+                            >
+                              Lv.{lv} / {MAX_ABYSS_UPGRADE_LEVEL}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-purple-300 font-medium">
+                            {upg.subtitle}
+                          </div>
+                          <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                            {upg.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#11131c] border border-[#2b3042] px-2.5 py-2 space-y-1 text-[11px]">
+                        <div className="text-slate-400">{upg.perLevelText}</div>
+                        <div className="font-num font-bold text-emerald-300">
+                          現在効果: {upg.formatBonus(lv)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isMax ? (
+                      <div className="pt-2 border-t border-[#2b3040] text-xs font-bold text-emerald-400">
+                        深淵強化 MAX到達（Lv.{MAX_ABYSS_UPGRADE_LEVEL}）
+                      </div>
+                    ) : (
+                      <div className="pt-2 border-t border-[#2b3040] space-y-2">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-num">
+                          <span className={hasGold ? 'text-amber-300' : 'text-red-400'}>
+                            {cost.gold.toLocaleString()}G
+                          </span>
+                          <span className={hasCrests ? 'text-emerald-300' : 'text-red-400'}>
+                            証 {save.clearCrests}/{cost.crests}
+                          </span>
+                          <span className={hasIron ? 'text-slate-200' : 'text-red-400'}>
+                            鉄 {save.materials.iron_ore}/{cost.iron}
+                          </span>
+                          <span className={hasStone ? 'text-sky-300' : 'text-red-400'}>
+                            魔石 {save.materials.magic_stone}/{cost.stone}
+                          </span>
+                          <span className={hasScroll ? 'text-amber-200' : 'text-red-400'}>
+                            古文書 {save.materials.ancient_scroll}/{cost.scroll}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onUpgradeAbyss(upg.id)}
+                          disabled={!canAfford}
+                          className="w-full py-2 px-3 text-xs font-bold bg-purple-500 hover:bg-purple-400 text-white disabled:bg-[#262b38] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          {canAfford
+                            ? `深淵強化 Lv.${lv + 1} へ鍛える`
+                            : 'ゴールド・証・素材が不足'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* RIGHT STICKY SIDEBAR: 5-SLOT POUCH + PARTY + STAGE SELECT (4 cols) */}
@@ -4140,10 +4307,14 @@ export const TownView: React.FC<TownViewProps> = ({
                     無限深淵チャレンジ（第{ENDLESS_BENCHMARK_LOOP}周目基準 · 固定倍率 {endlessStatMult}x · 最高記録: {save.bestEndlessFloor ?? 0}F）
                   </div>
                   <div className="text-[11px] text-slate-300 leading-relaxed">
-                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から超絶低確率で{trueEndgameVisible ? '鍛冶限定パーツ3種' : '希少な深淵素材3種'}（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。
+                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から超絶低確率で{trueEndgameVisible ? '鍛冶限定パーツ3種' : '希少な深淵素材3種'}（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。{' '}
+                    <span className="text-purple-300 font-bold">
+                      10F到達で永続強化タブ「深淵強化」が開放！
+                    </span>
                     {trueEndgameVisible && (
                       <span className="text-amber-300 font-bold">
-                        100F突破で「裏実績」「鍛冶屋限定装備」「深淵超越スキルツリー（32x/64x）」が解放！
+                        {' '}
+                        {ENDLESS_TRUE_ENDGAME_FLOOR}F突破で「裏実績」「鍛冶屋限定装備」「深淵超越スキルツリー（32x/64x）」が解放！
                       </span>
                     )}
                   </div>

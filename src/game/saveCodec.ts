@@ -12,11 +12,13 @@ import {
   INITIAL_TOTAL_METER_CAP,
   INITIAL_TYPE_METER_CAPS,
   ITEMS,
+  MAX_ABYSS_UPGRADE_LEVEL,
   MAX_ITEM_REFINE,
   MAX_POUCH_SLOTS,
   MAX_PRESET_SLOTS,
 } from './data';
 import {
+  AbyssUpgradeId,
   ConvenienceUpgradeId,
   CustomAllyBody,
   CustomAllyConfig,
@@ -187,6 +189,27 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     });
   }
 
+  const validAbyssUpgrades = new Set<AbyssUpgradeId>([
+    'abyss_blade',
+    'abyss_bulwark',
+    'abyss_legion',
+    'abyss_siphon',
+    'abyss_resonance',
+  ]);
+  const abyssUpgrades: Partial<Record<AbyssUpgradeId, number>> = {};
+  if (parsed.abyssUpgrades && typeof parsed.abyssUpgrades === 'object') {
+    Object.entries(parsed.abyssUpgrades).forEach(([id, lv]) => {
+      if (
+        validAbyssUpgrades.has(id as AbyssUpgradeId) &&
+        typeof lv === 'number' &&
+        Number.isFinite(lv) &&
+        lv > 0
+      ) {
+        abyssUpgrades[id as AbyssUpgradeId] = Math.min(MAX_ABYSS_UPGRADE_LEVEL, Math.floor(lv));
+      }
+    });
+  }
+
   const defaultSeenAnnouncements: string[] = [];
   if (!Array.isArray(parsed.seenAnnouncements)) {
     const preCleared = loopCount >= 2 ? 99 : Math.max(0, Math.floor(parsed.highestClearedStage ?? 0));
@@ -196,6 +219,8 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     if (preCleared >= 4) defaultSeenAnnouncements.push('unlock_s4');
     if (loopCount >= 2) defaultSeenAnnouncements.push('unlock_reincarnate');
     if (loopCount >= 5) defaultSeenAnnouncements.push('unlock_loop5_engrave');
+    if (bestEndlessFloor >= 10) defaultSeenAnnouncements.push('unlock_endless_10');
+    if (bestEndlessFloor >= 50) defaultSeenAnnouncements.push('unlock_endless_100');
   }
   const seenAnnouncements = Array.isArray(parsed.seenAnnouncements)
     ? parsed.seenAnnouncements.filter((x): x is string => typeof x === 'string')
@@ -331,6 +356,7 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     presets,
     itemRefineLevels,
     itemEngravings,
+    abyssUpgrades,
     seenAnnouncements,
     lifetimeStats: (() => {
       const raw = (parsed.lifetimeStats ?? {}) as Partial<LifetimeStats>;

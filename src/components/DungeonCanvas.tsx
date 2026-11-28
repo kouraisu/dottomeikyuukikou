@@ -7,6 +7,7 @@ import {
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
   ENEMIES,
+  getAbyssUpgradeBonuses,
   getAchievementBonuses,
   getActiveSynergies,
   getAllyDef,
@@ -343,28 +344,50 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
     const activeSynergies = getActiveSynergies(runSave);
     const synBonus = getSynergySummary(runSave);
     const engBonus = getEngravingSummaryFromPouch(runSave.pouch, runSave.itemEngravings);
+    const abyssBonus = getAbyssUpgradeBonuses(runSave);
     const gimmickId = stage.gimmick.id;
 
-    // Aggregate bonuses from 5-slot pouch + blessings + hero level + compendium + skills + achievements + synergies + engravings + gimmick
+    // Aggregate bonuses from 5-slot pouch + blessings + hero level + compendium + skills + achievements + synergies + engravings + abyss + gimmick
     let heroAtk = 14 + (runSave.heroUpgradeLevel - 1) * 4;
     let heroDef = 3 + (runSave.heroUpgradeLevel - 1) * 2;
     let heroMaxHp = 115 + (runSave.heroUpgradeLevel - 1) * 22;
-    let heroSpdPct = skillBonus.spdPct + achBonus.spdPct + synBonus.spdPct + engBonus.spdPct;
-    let heroCrit = 8 + skillBonus.critPct + achBonus.critPct + synBonus.critPct + engBonus.critPct;
+    let heroSpdPct =
+      skillBonus.spdPct + achBonus.spdPct + synBonus.spdPct + engBonus.spdPct + abyssBonus.spdPct;
+    let heroCrit =
+      8 + skillBonus.critPct + achBonus.critPct + synBonus.critPct + engBonus.critPct + abyssBonus.critPct;
     let heroLifesteal =
-      skillBonus.lifestealPct + achBonus.lifestealPct + synBonus.lifestealPct + engBonus.lifestealPct;
+      skillBonus.lifestealPct +
+      achBonus.lifestealPct +
+      synBonus.lifestealPct +
+      engBonus.lifestealPct +
+      abyssBonus.lifestealPct;
     let heroThorns = 0;
-    let goldBonusPct = skillBonus.goldPct + achBonus.goldPct + synBonus.goldPct + engBonus.goldPct;
-    let dropBonusPct = skillBonus.dropPct + achBonus.dropPct + engBonus.dropPct;
-    let roomHealFlat = skillBonus.roomHeal + synBonus.roomHeal + engBonus.roomHeal;
+    let goldBonusPct =
+      skillBonus.goldPct + achBonus.goldPct + synBonus.goldPct + engBonus.goldPct + abyssBonus.goldPct;
+    let dropBonusPct =
+      skillBonus.dropPct + achBonus.dropPct + engBonus.dropPct + abyssBonus.dropPct;
+    let roomHealFlat =
+      skillBonus.roomHeal + synBonus.roomHeal + engBonus.roomHeal + abyssBonus.roomHeal;
     let burnChance = synBonus.burnChance;
     let chainLightningChance = 0;
     let allyPowerPct =
-      skillBonus.allyPowerPct + achBonus.allyPowerPct + synBonus.allyPowerPct + engBonus.allyPowerPct;
+      skillBonus.allyPowerPct +
+      achBonus.allyPowerPct +
+      synBonus.allyPowerPct +
+      engBonus.allyPowerPct +
+      abyssBonus.allyPowerPct;
     let allyHpBonusPct =
-      skillBonus.allyHpPct + achBonus.allyHpPct + synBonus.allyHpPct + engBonus.allyHpPct;
+      skillBonus.allyHpPct +
+      achBonus.allyHpPct +
+      synBonus.allyHpPct +
+      engBonus.allyHpPct +
+      abyssBonus.allyHpPct;
     let allySpdBonusPct =
-      skillBonus.allySpdPct + achBonus.allySpdPct + synBonus.allySpdPct + engBonus.allySpdPct;
+      skillBonus.allySpdPct +
+      achBonus.allySpdPct +
+      synBonus.allySpdPct +
+      engBonus.allySpdPct +
+      abyssBonus.allySpdPct;
 
     if (gimmickId === 'HEAT_WAVE') dropBonusPct += 25;
     if (gimmickId === 'CURSED_MIASMA') {
@@ -411,9 +434,12 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       });
     });
 
-    let atkPctMult = skillBonus.atkPct + achBonus.atkPct + synBonus.atkPct + engBonus.heroAtkPct;
-    let defPctMult = skillBonus.defPct + achBonus.defPct + synBonus.defPct + engBonus.heroDefPct;
-    let hpPctMult = skillBonus.hpPct + achBonus.hpPct + synBonus.hpPct + engBonus.heroHpPct;
+    let atkPctMult =
+      skillBonus.atkPct + achBonus.atkPct + synBonus.atkPct + engBonus.heroAtkPct + abyssBonus.atkPct;
+    let defPctMult =
+      skillBonus.defPct + achBonus.defPct + synBonus.defPct + engBonus.heroDefPct + abyssBonus.defPct;
+    let hpPctMult =
+      skillBonus.hpPct + achBonus.hpPct + synBonus.hpPct + engBonus.heroHpPct + abyssBonus.hpPct;
     runSave.activeBlessings.forEach((bId) => {
       const lv = runSave.unlockedBlessings[bId] ?? 0;
       const bDef = BLESSINGS.find((b) => b.id === bId);
@@ -457,12 +483,14 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       goldBonusPct += 10 + customRank * 5;
     }
 
+    const heroDmgReductionCap = abyssBonus.dmgReductionPct > 0 ? 72 : 65;
     const totalDmgReduction = Math.min(
-      65,
+      heroDmgReductionCap,
       skillBonus.dmgReductionPct +
         achBonus.dmgReductionPct +
         synBonus.dmgReductionPct +
-        engBonus.dmgReductionPct
+        engBonus.dmgReductionPct +
+        abyssBonus.dmgReductionPct
     );
 
     const heroUnit: SimUnit = {
@@ -524,7 +552,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       const allyDef = Math.round(
         def.baseDef *
           (1 + (lv - 1) * 0.16 + rank * 0.12 + gearLv * 0.1) *
-          (1 + (skillBonus.allyDefPct + achBonus.heroAndAllyStatsPct) / 100) +
+          (1 + (skillBonus.allyDefPct + achBonus.heroAndAllyStatsPct + abyssBonus.allyDefPct) / 100) +
           heroDef * heroShareRate
       );
 
@@ -543,10 +571,11 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
         lifesteal:
           skillBonus.allyLifestealPct +
           achBonus.lifestealPct +
+          abyssBonus.allyLifestealPct +
           (gimmickId === 'CURSED_MIASMA' ? 8 : 0),
         thorns: def.role === 'TANK' ? rank * 12 : 0,
         dmgReductionPct: Math.min(
-          60,
+          abyssBonus.dmgReductionPct > 0 ? 70 : 60,
           baseReduction + totalDmgReduction + skillBonus.allyDmgReductionPct
         ),
         attackIntervalMs: Math.max(400, Math.round(def.attackIntervalMs / (1 + spdBonus / 100))),
@@ -707,7 +736,11 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
     ): SimEnemy => {
       const def = ENEMIES[enemyId] ?? ENEMIES.slime;
       let mult = stage.isEndless
-        ? (1 + (floorScale - 1) * 0.24 + Math.max(0, floorScale - 10) * 0.09) * loopMult
+        ? (1 +
+            (floorScale - 1) * 0.14 +
+            Math.max(0, floorScale - 20) * 0.05 +
+            Math.max(0, floorScale - 50) * 0.06) *
+          loopMult
         : (1 + (floorScale - 1) * 0.21) * loopMult;
       if (gimmickId === 'CHRONO_DISTORTION') {
         mult *= 1 + (floorScale - 1) * 0.05;
@@ -1141,7 +1174,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           });
           const preRatio = endangeredUnit.hp / endangeredUnit.maxHp;
           let totalHealed = 0;
-          const consumableMult = 1 + skillBonus.consumablePowerPct / 100;
+          const consumableMult =
+            1 + (skillBonus.consumablePowerPct + abyssBonus.consumablePowerPct) / 100;
           party.forEach((u) => {
             totalHealed += healUnit(u, Math.round(effPower * consumableMult), 'hero');
           });
@@ -1172,7 +1206,7 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           sound.bomb();
           bubbles.push({ x: heroUnit.x + 6, y: heroUnit.y - 22, spriteId: item.spriteId, life: 900 });
           const dmg = Math.round(
-            effPower * (1 + skillBonus.consumablePowerPct / 100)
+            effPower * (1 + (skillBonus.consumablePowerPct + abyssBonus.consumablePowerPct) / 100)
           );
           encounter.enemies.forEach((e) => {
             if (!e.alive) return;
@@ -2864,7 +2898,8 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                       ? (skillBonus.critDmgPct +
                           achBonus.critDmgPct +
                           synBonus.critDmgPct +
-                          engBonus.critDmgPct) /
+                          engBonus.critDmgPct +
+                          abyssBonus.critDmgPct) /
                         100
                       : (achBonus.critDmgPct + synBonus.critDmgPct) / 100) +
                     (gimmickId === 'BLUE_FLAME' ? 0.35 : 0)

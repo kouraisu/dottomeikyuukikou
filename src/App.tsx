@@ -19,6 +19,7 @@ import { SummaryView } from './components/SummaryView';
 import { TitleView } from './components/TitleView';
 import { TownView } from './components/TownView';
 import {
+  ABYSS_UPGRADES,
   ACHIEVEMENTS,
   ALL_ACHIEVEMENT_IDS,
   ALL_SECRET_ACHIEVEMENT_IDS,
@@ -38,6 +39,7 @@ import {
   FeatureUnlockDef,
   FORGE_EXCLUSIVE_ITEM_IDS,
   FORGE_RECIPES,
+  getAbyssUpgradeCost,
   getAllyDef,
   getAllyGearCost,
   getAllyTrainBulkCost,
@@ -67,6 +69,7 @@ import {
   INITIAL_LIFETIME_STATS,
   INITIAL_SAVE_STATE,
   INITIAL_TYPE_METER_CAPS,
+  isAbyssTabUnlocked,
   isCustomAllyUnlocked,
   isEndlessUnlocked,
   isItemEngravingUnlocked,
@@ -76,6 +79,7 @@ import {
   isTranscendentUnlocked,
   isTrueEndgameUnlocked,
   ITEMS,
+  MAX_ABYSS_UPGRADE_LEVEL,
   MAX_ITEM_REFINE,
   MAX_POUCH_SLOTS,
   MAX_PRESET_SLOTS,
@@ -92,6 +96,7 @@ import {
 import { BgmTrack, BGM_TRACK_LABELS, sound } from './game/sound';
 import { syncCustomAllySprite } from './game/pixelSprites';
 import {
+  AbyssUpgradeId,
   AchievementDef,
   AutoEquipPlaystyle,
   CombatLogEntry,
@@ -145,6 +150,7 @@ export default function App() {
   const [summaryUnlocked, setSummaryUnlocked] = useState<FeatureUnlockDef[]>([]);
   const [summaryAchievements, setSummaryAchievements] = useState<AchievementDef[]>([]);
   const [summaryEndlessUnlocked, setSummaryEndlessUnlocked] = useState(false);
+  const [summaryAbyssUnlocked, setSummaryAbyssUnlocked] = useState(false);
   const [summaryTrueEndgameUnlocked, setSummaryTrueEndgameUnlocked] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [expeditionRunId, setExpeditionRunId] = useState(0);
@@ -709,6 +715,7 @@ export default function App() {
         })),
         itemRefineLevels: {},
         itemEngravings: {},
+        abyssUpgrades: { ...(prev.abyssUpgrades ?? {}) },
         seenAnnouncements: [...(prev.seenAnnouncements ?? [])],
         customAlly: prev.customAlly
           ? {
@@ -738,6 +745,7 @@ export default function App() {
     setSummaryUnlocked([]);
     setSummaryAchievements([]);
     setSummaryEndlessUnlocked(false);
+    setSummaryAbyssUnlocked(false);
     setSummaryTrueEndgameUnlocked(false);
     setScreen('TOWN');
     setTownTab('PREP');
@@ -1824,6 +1832,51 @@ export default function App() {
     });
   }, [showNotice]);
 
+  const handleUpgradeAbyss = useCallback(
+    (id: AbyssUpgradeId) => {
+      const def = ABYSS_UPGRADES.find((u) => u.id === id);
+      if (!def) return;
+      setSave((prev) => {
+        if (!isAbyssTabUnlocked(prev)) return prev;
+        const curLv = (prev.abyssUpgrades ?? {})[id] ?? 0;
+        if (curLv >= MAX_ABYSS_UPGRADE_LEVEL) return prev;
+        const cost = getAbyssUpgradeCost(id, curLv);
+        if (
+          prev.gold < cost.gold ||
+          prev.clearCrests < cost.crests ||
+          prev.materials.iron_ore < cost.iron ||
+          prev.materials.magic_stone < cost.stone ||
+          prev.materials.ancient_scroll < cost.scroll
+        ) {
+          return prev;
+        }
+        const nextLv = curLv + 1;
+        sound.heal();
+        showNotice(`${def.name} が Lv.${nextLv} に強化されました！（${def.formatBonus(nextLv)}）`);
+        return {
+          ...prev,
+          gold: prev.gold - cost.gold,
+          clearCrests: prev.clearCrests - cost.crests,
+          materials: {
+            ...prev.materials,
+            iron_ore: prev.materials.iron_ore - cost.iron,
+            magic_stone: prev.materials.magic_stone - cost.stone,
+            ancient_scroll: prev.materials.ancient_scroll - cost.scroll,
+          },
+          abyssUpgrades: {
+            ...(prev.abyssUpgrades ?? {}),
+            [id]: nextLv,
+          },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost.gold,
+            totalUpgrades: 1,
+          }),
+        };
+      });
+    },
+    [showNotice]
+  );
+
   const handleChangeSpeed = useCallback(
     (nextSpeed: GameSpeed) => {
       setSave((prev) => {
@@ -1999,6 +2052,7 @@ export default function App() {
         setSummaryUnlocked([]);
         setSummaryAchievements([]);
         setSummaryEndlessUnlocked(false);
+        setSummaryAbyssUnlocked(false);
         setSummaryTrueEndgameUnlocked(false);
         setSummary(result);
         setScreen('SUMMARY');
@@ -2006,6 +2060,7 @@ export default function App() {
       }
 
       const wasEndlessUnlocked = isEndlessUnlocked(save);
+      const wasAbyssUnlocked = isAbyssTabUnlocked(save);
       const wasTrueEndgame = isTrueEndgameUnlocked(save);
       const prevCleared = save.highestClearedStage;
       const isBossRushRun = Boolean(result.isBossRush || result.stageId === 10);
@@ -2186,6 +2241,7 @@ export default function App() {
       setSave(finalSave);
       setSummaryAchievements(evaluated.newlyUnlocked);
       setSummaryEndlessUnlocked(!wasEndlessUnlocked && isEndlessUnlocked(finalSave));
+      setSummaryAbyssUnlocked(!wasAbyssUnlocked && isAbyssTabUnlocked(finalSave));
       setSummaryTrueEndgameUnlocked(!wasTrueEndgame && isTrueEndgameUnlocked(finalSave));
       setSummary(summaryResult);
       if (shouldShowDemonKingEnding) {
@@ -2327,6 +2383,7 @@ export default function App() {
     { id: 'ACHIEVEMENTS', label: '実績' },
     { id: 'COMPENDIUM', label: '図鑑' },
     { id: 'FORGE', label: '鍛冶屋' },
+    { id: 'ABYSS', label: '深淵強化' },
   ];
 
   const currentSpeed = clampSpeedToUnlocked(save.preferredSpeed, save);
@@ -2574,6 +2631,7 @@ export default function App() {
             onUnlockSkill={handleUnlockSkill}
             onUpgradeSpMastery={handleUpgradeSpMastery}
             onResetSkills={handleResetSkills}
+            onUpgradeAbyss={handleUpgradeAbyss}
             onSelectStage={handleSelectStage}
             onSelectPracticeLoop={handleSelectPracticeLoop}
             onChangeEventMode={handleChangeEventMode}
@@ -2652,6 +2710,7 @@ export default function App() {
             newlyUnlockedAchievements={summaryAchievements}
             allAchievementsCompleted={areAllAchievementsUnlocked(save)}
             endlessJustUnlocked={summaryEndlessUnlocked}
+            abyssJustUnlocked={summaryAbyssUnlocked}
             trueEndgameJustUnlocked={summaryTrueEndgameUnlocked}
             canReincarnate={canReincarnate(save)}
             canAutoRepeat={canAutoRepeat}
