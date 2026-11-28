@@ -1474,6 +1474,22 @@ export function getCustomAllyDef(cfg?: CustomAllyConfig): AllyDef {
   };
 }
 
+export const CUSTOM_ALLY_LOOP23_FAIL_TARGET = 10;
+
+export function isCustomAllyUnlocked(
+  save: Pick<
+    SaveState,
+    'loopCount' | 'highestClearedLoop' | 'loop23FailRetreatCount' | 'customAllyUnlocked'
+  >
+): boolean {
+  return (
+    Boolean(save.customAllyUnlocked) ||
+    save.loopCount >= 4 ||
+    (save.highestClearedLoop ?? 0) >= 3 ||
+    (save.loop23FailRetreatCount ?? 0) >= CUSTOM_ALLY_LOOP23_FAIL_TARGET
+  );
+}
+
 export function getAllyDef(
   allyId: string,
   save?: Pick<SaveState, 'customAlly'>
@@ -2254,7 +2270,7 @@ export const SKILL_TREE: SkillNodeDef[] = [
     name: '【奥義】魂の共鳴覚醒',
     costSp: 2,
     requiresAny: ['ally_3'],
-    description: '【味方専用】味方全能力 +35% · 味方HP +25% · 味方が3回行動毎に1.6倍連携技発動 · 毎階終了時に味方蘇生',
+    description: '【味方専用】味方全能力 +35% · 味方HP +25% · 味方が3回行動毎に1.6倍連携技発動 · 毎階終了時に50%で味方蘇生',
     effects: { allyPowerPct: 35, allyHpPct: 25, allyOverdrive: true },
   },
 
@@ -2755,7 +2771,7 @@ export const INSTANT_EVENTS: InstantEventDef[] = [
   {
     id: 'stray_slime',
     title: 'はぐれ金スライム',
-    spriteId: 'enemy_slime',
+    spriteId: 'enemy_gold_slime',
     kind: 'STRAY_SLIME',
   },
   {
@@ -2896,6 +2912,8 @@ export const INITIAL_SAVE_STATE: SaveState = {
     recentRuns: [],
   },
   customAlly: { ...INITIAL_CUSTOM_ALLY },
+  customAllyUnlocked: false,
+  loop23FailRetreatCount: 0,
   seenStoryOpening: false,
   seenStoryEnding: false,
 };
@@ -4515,9 +4533,9 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
   {
     id: 'unlock_loop2',
     badge: '2周目報酬',
-    title: '図鑑の詳細解説・仮潜入・裏ステージ7＆希少イベント・オリキャラ解放！',
+    title: '図鑑の詳細解説・仮潜入・裏ステージ7＆希少イベント解放！',
     description:
-      '【2周目報酬】①図鑑の魔物・武器アイテムに背景解説ストーリーが追加 ②過去の周回倍率で低効率G・魔石稼ぎができる「仮潜入」解放 ③裏ステージ7「蒼炎の深淵窟」＆ミミック等の新イベントが出現 ④酒場に「まっさらな仲間（オリキャラ作成）」が解放！',
+      '【2周目報酬】①図鑑の魔物・武器アイテムに背景解説ストーリーが追加 ②過去の周回倍率で低効率G・魔石稼ぎができる「仮潜入」解放 ③裏ステージ7「蒼炎の深淵窟」＆ミミック等の新イベントが出現！',
     spriteId: 'item_sage_orb',
     accent: 'sky',
     targetTab: 'COMPENDIUM',
@@ -4526,15 +4544,15 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
   },
   {
     id: 'unlock_custom_ally',
-    badge: '2周目解放',
-    title: '酒場に「まっさらな仲間（オリキャラ枠）」が解放！',
+    badge: '隠しキャラ解放',
+    title: '隠し仲間「まっさらな仲間（オリキャラ枠）」が酒場に現れた！',
     description:
-      '第2周目に入ったことで、酒場にて名前・役割・色や16×16ドット絵を自由に作れる自分だけのオリジナル仲間「まっさらちゃん」を作成できるようになりました！',
+      '酒場の片隅に、何色にも染まっていない不思議な旅人「まっさらちゃん」が姿を現しました！名前・役割・色や16×16ドット絵を自由に作れるあなただけのオリジナル仲間を作成できます！',
     spriteId: 'ally_custom_blank',
     accent: 'amber',
     targetTab: 'TAVERN',
     actionLabel: '酒場で作成する',
-    isUnlocked: (save) => save.loopCount >= 2 && !save.customAlly?.created,
+    isUnlocked: (save) => isCustomAllyUnlocked(save) && !save.customAlly?.created,
   },
   {
     id: 'unlock_loop3',

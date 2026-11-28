@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Play, RotateCcw, Sparkles, Volume2, VolumeX } from 'lucide-react';
-import { getCompendiumStats } from '../game/data';
-import { getSpriteCanvas, syncCustomAllySprite } from '../game/pixelSprites';
+import { getCompendiumStats, isCustomAllyUnlocked } from '../game/data';
+import { getSpriteAuraCanvas, getSpriteCanvas, syncCustomAllySprite } from '../game/pixelSprites';
 import { sound } from '../game/sound';
 import { SaveState } from '../game/types';
 
@@ -42,7 +42,14 @@ type ActorBehavior =
   | 'dance'
   | 'float_orbit'
   | 'mega_bounce'
-  | 'nervous_guard';
+  | 'nervous_guard'
+  | 'waddle_tilt'
+  | 'burst_dash'
+  | 'trip_recover'
+  | 'spin_jump'
+  | 'zigzag_weave'
+  | 'moonwalk_showoff'
+  | 'leapfrog';
 
 interface VignetteActor {
   spriteId: string;
@@ -68,6 +75,7 @@ interface VignetteActor {
   defaultSymbolColor: string;
   squashX: number;
   squashY: number;
+  tiltRad: number;
   pauseAtX?: number;
   pauseDuration?: number;
   pauseTimer: number;
@@ -76,6 +84,10 @@ interface VignetteActor {
   didShoot?: boolean;
   flipTurnAtX?: number;
   didFlipTurn?: boolean;
+  tripAtX?: number;
+  didTrip?: boolean;
+  tripTimer: number;
+  depthAmp?: number;
   stompSync?: boolean;
   prop?: 'coin_bag' | 'star_orb';
 }
@@ -99,6 +111,30 @@ interface TitleStarOrb {
   color: string;
   life: number;
   kind: 'star' | 'arrow';
+}
+
+type SuddenEventKind =
+  | 'SLIME_PEEK'
+  | 'HERO_VS_DEMON_CLASH'
+  | 'GOLD_SLIME_DASH'
+  | 'METEOR_SHOWER'
+  | 'OMEGA_DRAGON_FLYOVER';
+
+interface SuddenEventState {
+  kind: SuddenEventKind;
+  elapsed: number;
+  duration: number;
+  variant: number;
+  x: number;
+  y: number;
+  auxX: number;
+  auxY: number;
+  dir: 1 | -1;
+  clashCount: number;
+  flashMs: number;
+  shakeMs: number;
+  trailClock: number;
+  meteors: { x: number; y: number; vx: number; vy: number; color: string; delay: number }[];
 }
 
 interface VignetteSpec {
@@ -375,6 +411,7 @@ function makeActor(partial: Partial<VignetteActor> & { spriteId: string }): Vign
     defaultSymbolColor: partial.defaultSymbolColor ?? '#fde047',
     squashX: 1,
     squashY: 1,
+    tiltRad: 0,
     pauseAtX: partial.pauseAtX,
     pauseDuration: partial.pauseDuration ?? 700,
     pauseTimer: 0,
@@ -383,6 +420,10 @@ function makeActor(partial: Partial<VignetteActor> & { spriteId: string }): Vign
     didShoot: false,
     flipTurnAtX: partial.flipTurnAtX,
     didFlipTurn: false,
+    tripAtX: partial.tripAtX,
+    didTrip: false,
+    tripTimer: 0,
+    depthAmp: partial.depthAmp,
     stompSync: partial.stompSync,
     prop: partial.prop,
   };
@@ -402,7 +443,7 @@ function buildVignetteDeck(includeCustom: boolean): VignetteSpec[] {
           baseY: 170,
           vx: 1.05,
           scale: 1.68,
-          behavior: 'walk',
+          behavior: 'waddle_tilt',
           hopAmp: 3.5,
           pauseAtX: 280,
           pauseDuration: 680,
@@ -417,7 +458,7 @@ function buildVignetteDeck(includeCustom: boolean): VignetteSpec[] {
           baseY: 174,
           vx: 1.08,
           scale: 1.75,
-          behavior: 'skip',
+          behavior: 'leapfrog',
           hopAmp: 6.5,
           trail: 'sparkle',
           defaultSymbol: 'sparkle',
@@ -431,8 +472,9 @@ function buildVignetteDeck(includeCustom: boolean): VignetteSpec[] {
           baseY: 168,
           vx: 1.05,
           scale: 1.62,
-          behavior: 'walk',
-          hopAmp: 4,
+          behavior: 'zigzag_weave',
+          hopAmp: 4.5,
+          depthAmp: 10,
           trail: 'heart',
           defaultSymbol: 'heart',
           defaultSymbolColor: '#fb7185',
@@ -1248,9 +1290,198 @@ function buildVignetteDeck(includeCustom: boolean): VignetteSpec[] {
           baseY: 172,
           vx: 1.18,
           scale: 1.75,
-          behavior: 'walk',
+          behavior: 'waddle_tilt',
           hopAmp: 5,
           trail: 'sparkle',
+        }),
+      ],
+    },
+
+    // 19. Sneaky Burst Dash Squad: Thief & Goblin sneak-tiptoe then turbo sprint!
+    {
+      id: 'stealth_burst_squad',
+      dir: 1,
+      build: (sx) => [
+        makeActor({
+          spriteId: 'ally_thief',
+          dir: 1,
+          x: sx,
+          baseY: 174,
+          vx: 1.25,
+          scale: 1.66,
+          behavior: 'burst_dash',
+          hopAmp: 5,
+          hopSpeed: 0.012,
+          trail: 'gold',
+          prop: 'coin_bag',
+          defaultSymbol: 'note',
+          defaultSymbolColor: '#fde047',
+          symbolPeriod: 1400,
+        }),
+        makeActor({
+          spriteId: 'enemy_goblin',
+          dir: 1,
+          x: sx - 44,
+          baseY: 168,
+          vx: 1.24,
+          scale: 1.56,
+          behavior: 'burst_dash',
+          hopAmp: 6,
+          hopSpeed: 0.012,
+          phase: 0.4,
+          trail: 'dust',
+          defaultSymbol: 'sweat',
+          defaultSymbolColor: '#38bdf8',
+          symbolPeriod: 1500,
+        }),
+      ],
+    },
+
+    // 20. Clumsy Stumble Walk: Villager B trips mid-road while Slime & Cleric rush to help!
+    {
+      id: 'clumsy_stumble_walk',
+      dir: 1,
+      build: (sx) => [
+        makeActor({
+          spriteId: 'npc_villager_b',
+          dir: 1,
+          x: sx,
+          baseY: 175,
+          vx: 1.18,
+          scale: 1.62,
+          behavior: 'trip_recover',
+          hopAmp: 5,
+          tripAtX: 255,
+          trail: 'dust',
+          defaultSymbol: 'note',
+          defaultSymbolColor: '#fde047',
+          symbolPeriod: 1500,
+        }),
+        makeActor({
+          spriteId: 'enemy_slime',
+          dir: 1,
+          x: sx - 38,
+          baseY: 172,
+          vx: 1.18,
+          scale: 1.42,
+          behavior: 'spin_jump',
+          hopAmp: 12,
+          hopSpeed: 0.012,
+          trail: 'none',
+          defaultSymbol: 'heart',
+          defaultSymbolColor: '#38bdf8',
+          symbolPeriod: 1450,
+        }),
+        makeActor({
+          spriteId: 'ally_cleric',
+          dir: 1,
+          x: sx - 76,
+          baseY: 169,
+          vx: 1.18,
+          scale: 1.62,
+          behavior: 'waddle_tilt',
+          hopAmp: 4.5,
+          trail: 'heart',
+        }),
+      ],
+    },
+
+    // 21. Acrobatic Leapfrog Trio: Hero + Ranger + Goblin exploring zigzag across road (Right -> Left)
+    {
+      id: 'acrobat_leapfrog_trio',
+      dir: -1,
+      build: (sx) => [
+        makeActor({
+          spriteId: 'hero',
+          dir: -1,
+          x: sx,
+          baseY: 172,
+          vx: -1.32,
+          scale: 1.75,
+          behavior: 'leapfrog',
+          hopAmp: 7,
+          hopSpeed: 0.013,
+          trail: 'sparkle',
+          defaultSymbol: 'sparkle',
+          defaultSymbolColor: '#fde047',
+          symbolPeriod: 1450,
+        }),
+        makeActor({
+          spriteId: 'ally_ranger',
+          dir: -1,
+          x: sx + 42,
+          baseY: 175,
+          vx: -1.32,
+          scale: 1.65,
+          behavior: 'zigzag_weave',
+          hopAmp: 5.5,
+          depthAmp: 11,
+          trail: 'dust',
+        }),
+        makeActor({
+          spriteId: 'enemy_slime',
+          dir: -1,
+          x: sx + 82,
+          baseY: 168,
+          vx: -1.32,
+          scale: 1.45,
+          behavior: 'spin_jump',
+          hopAmp: 13,
+          hopSpeed: 0.014,
+          trail: 'gold',
+          defaultSymbol: 'note',
+          defaultSymbolColor: '#38bdf8',
+          symbolPeriod: 1350,
+        }),
+      ],
+    },
+
+    // 22. Moonwalk Showoff Parade: Skeleton + Mage + Imp showing off fancy footwork
+    {
+      id: 'moonwalk_showoff_party',
+      dir: 1,
+      build: (sx) => [
+        makeActor({
+          spriteId: 'enemy_skeleton',
+          dir: 1,
+          x: sx,
+          baseY: 175,
+          vx: 1.15,
+          scale: 1.65,
+          behavior: 'moonwalk_showoff',
+          hopAmp: 4,
+          hopSpeed: 0.01,
+          trail: 'sparkle',
+          defaultSymbol: 'note',
+          defaultSymbolColor: '#fde047',
+          symbolPeriod: 1300,
+        }),
+        makeActor({
+          spriteId: 'ally_mage',
+          dir: 1,
+          x: sx - 42,
+          baseY: 170,
+          vx: 1.15,
+          scale: 1.65,
+          behavior: 'zigzag_weave',
+          hopAmp: 5,
+          depthAmp: 9,
+          trail: 'void',
+          prop: 'star_orb',
+        }),
+        makeActor({
+          spriteId: 'enemy_imp',
+          dir: 1,
+          x: sx - 78,
+          baseY: 112,
+          vx: 1.18,
+          scale: 1.48,
+          behavior: 'fly_loop',
+          hopAmp: 12,
+          trail: 'fire',
+          defaultSymbol: 'heart',
+          defaultSymbolColor: '#fb923c',
+          symbolPeriod: 1500,
         }),
       ],
     },
@@ -1387,7 +1618,7 @@ export const TitleView: React.FC<TitleViewProps> = ({
   }, [save.customAlly]);
 
   useEffect(() => {
-    const canShowCustom = save.loopCount >= 2 && Boolean(save.customAlly?.created);
+    const canShowCustom = isCustomAllyUnlocked(save) && Boolean(save.customAlly?.created);
     const deckTemplate = buildVignetteDeck(canShowCustom);
     let shuffledQueue: VignetteSpec[] = [];
     let lastId = '';
@@ -1555,6 +1786,18 @@ export const TitleView: React.FC<TitleViewProps> = ({
       const cx = ((ev.clientX - rect.left) / rect.width) * CANVAS_W;
       const cy = ((ev.clientY - rect.top) / rect.height) * CANVAS_H;
       spawnBurst(cx, cy, ['#fde047', '#38bdf8', '#fb7185'], 10);
+      if (suddenEvent) {
+        if (
+          suddenEvent.kind === 'SLIME_PEEK' &&
+          Math.hypot(suddenEvent.x - cx, suddenEvent.y - 44 - cy) < 68
+        ) {
+          suddenEvent.flashMs = 240;
+          spawnBurst(cx, cy, ['#fde047', '#38bdf8', '#ffffff'], 14);
+        } else if (suddenEvent.kind === 'HERO_VS_DEMON_CLASH') {
+          suddenEvent.flashMs = 180;
+          spawnBurst(cx, cy, ['#fde047', '#ef4444', '#ffffff'], 14);
+        }
+      }
       activeGroup.forEach((a) => {
         if (Math.hypot(a.x - cx, a.y - cy) < 90) {
           a.squashX = 0.8;
@@ -1566,6 +1809,121 @@ export const TitleView: React.FC<TitleViewProps> = ({
       });
     };
     canvas?.addEventListener('click', handlePointer);
+
+    const createSuddenEvent = (lastKind?: SuddenEventKind): SuddenEventState => {
+      const kinds: SuddenEventKind[] = [
+        'SLIME_PEEK',
+        'HERO_VS_DEMON_CLASH',
+        'GOLD_SLIME_DASH',
+        'METEOR_SHOWER',
+        'OMEGA_DRAGON_FLYOVER',
+      ];
+      const pool = lastKind ? kinds.filter((k) => k !== lastKind) : kinds;
+      const kind = pool[Math.floor(Math.random() * pool.length)];
+      const dir: 1 | -1 = Math.random() < 0.5 ? 1 : -1;
+
+      if (kind === 'SLIME_PEEK') {
+        return {
+          kind,
+          elapsed: 0,
+          duration: 4800,
+          variant: Math.random() < 0.25 ? 1 : 0, // 25% shiny gold slime peek!
+          x: Math.round(125 + Math.random() * (CANVAS_W - 250)),
+          y: CANVAS_H + 112,
+          auxX: 0,
+          auxY: 0,
+          dir: 1,
+          clashCount: 0,
+          flashMs: 0,
+          shakeMs: 0,
+          trailClock: 0,
+          meteors: [],
+        };
+      }
+      if (kind === 'HERO_VS_DEMON_CLASH') {
+        return {
+          kind,
+          elapsed: 0,
+          duration: 5400,
+          variant: 0,
+          x: -36, // Hero X
+          y: 174,
+          auxX: CANVAS_W + 44, // Demon King X
+          auxY: 174,
+          dir: 1,
+          clashCount: 0,
+          flashMs: 0,
+          shakeMs: 0,
+          trailClock: 0,
+          meteors: [],
+        };
+      }
+      if (kind === 'GOLD_SLIME_DASH') {
+        return {
+          kind,
+          elapsed: 0,
+          duration: 4400,
+          variant: 0,
+          x: dir === 1 ? -32 : CANVAS_W + 32,
+          y: 174,
+          auxX: dir === 1 ? -105 : CANVAS_W + 105,
+          auxY: 176,
+          dir,
+          clashCount: 0,
+          flashMs: 0,
+          shakeMs: 0,
+          trailClock: 0,
+          meteors: [],
+        };
+      }
+      if (kind === 'METEOR_SHOWER') {
+        const mCols = ['#fde047', '#38bdf8', '#e879f9', '#fef08a', '#ffffff'];
+        return {
+          kind,
+          elapsed: 0,
+          duration: 4800,
+          variant: 0,
+          x: 155,
+          y: 176,
+          auxX: 365,
+          auxY: 176,
+          dir: 1,
+          clashCount: 0,
+          flashMs: 0,
+          shakeMs: 0,
+          trailClock: 0,
+          meteors: Array.from({ length: 8 }, (_, idx) => ({
+            x: 80 + idx * 54 + Math.random() * 26,
+            y: -14,
+            vx: -2.4 - Math.random() * 1.1,
+            vy: 1.7 + Math.random() * 0.8,
+            color: mCols[idx % mCols.length],
+            delay: idx * 380,
+          })),
+        };
+      }
+      // OMEGA_DRAGON_FLYOVER
+      return {
+        kind: 'OMEGA_DRAGON_FLYOVER',
+        elapsed: 0,
+        duration: 5000,
+        variant: 0,
+        x: dir === 1 ? -60 : CANVAS_W + 60,
+        y: 66,
+        auxX: 250,
+        auxY: 176,
+        dir,
+        clashCount: 0,
+        flashMs: 0,
+        shakeMs: 0,
+        trailClock: 0,
+        meteors: [],
+      };
+    };
+
+    let suddenEvent: SuddenEventState | null = Math.random() < 0.08 ? createSuddenEvent() : null;
+    let lastSuddenKind: SuddenEventKind | undefined = suddenEvent?.kind;
+    let vignettesSinceSudden = 0;
 
     let rafId = 0;
     let lastTime = performance.now();
@@ -1689,10 +2047,160 @@ export const TitleView: React.FC<TitleViewProps> = ({
         }
       }
 
-      if (handoffPause > 0) {
+      if (suddenEvent) {
+        suddenEvent.elapsed += dt;
+        if (suddenEvent.flashMs > 0) suddenEvent.flashMs = Math.max(0, suddenEvent.flashMs - dt);
+        if (suddenEvent.shakeMs > 0) suddenEvent.shakeMs = Math.max(0, suddenEvent.shakeMs - dt);
+
+        if (suddenEvent.kind === 'SLIME_PEEK') {
+          const t = suddenEvent.elapsed;
+          if (t < 1100) {
+            const p = t / 1100;
+            const ease = 1 - Math.pow(1 - p, 3);
+            const overshoot = Math.sin(p * Math.PI) * 8;
+            suddenEvent.y = CANVAS_H + 112 - ease * 96 - overshoot;
+          } else if (t < 3650) {
+            const bob = Math.sin((t - 1100) / 260) * 3.5;
+            suddenEvent.y = CANVAS_H + 16 + bob;
+            suddenEvent.trailClock += dt;
+            if (suddenEvent.variant === 1 && suddenEvent.trailClock > 160) {
+              suddenEvent.trailClock = 0;
+              particles.push({
+                x: suddenEvent.x + (Math.random() - 0.5) * 84,
+                y: suddenEvent.y - 26 - Math.random() * 68,
+                vx: (Math.random() - 0.5) * 0.4,
+                vy: -0.45,
+                color: Math.random() < 0.5 ? '#fde047' : '#ffffff',
+                size: 2,
+                life: 480,
+                gravity: -0.01,
+              });
+            }
+          } else {
+            const p = Math.min(1, (t - 3650) / 1150);
+            const ease = p * p;
+            suddenEvent.y = CANVAS_H + 16 + ease * 104;
+          }
+        } else if (suddenEvent.kind === 'HERO_VS_DEMON_CLASH') {
+          const t = suddenEvent.elapsed;
+          const centerHeroX = 232;
+          const centerBossX = 290;
+          if (t < 900) {
+            const p = t / 900;
+            const ease = 1 - Math.pow(1 - p, 2);
+            suddenEvent.x = -36 + (centerHeroX + 36) * ease;
+            suddenEvent.auxX = CANVAS_W + 44 - (CANVAS_W + 44 - centerBossX) * ease;
+            suddenEvent.y = 174 - Math.abs(Math.sin(p * Math.PI * 3)) * 8;
+            suddenEvent.auxY = 174 - Math.sin(p * Math.PI) * 14;
+          } else if (t < 4100) {
+            const clashTimes = [1050, 2050, 3050];
+            if (
+              suddenEvent.clashCount < clashTimes.length &&
+              t >= clashTimes[suddenEvent.clashCount]
+            ) {
+              suddenEvent.clashCount += 1;
+              suddenEvent.flashMs = 200;
+              suddenEvent.shakeMs = 170;
+              spawnBurst(260, 152, ['#fde047', '#ffffff', '#38bdf8', '#ef4444', '#f97316'], 16, 0.03);
+            }
+            const phaseInBeat = (t - 900) % 1000;
+            const lunge = phaseInBeat < 220 ? Math.sin((phaseInBeat / 220) * Math.PI) * 20 : 0;
+            const recoil = phaseInBeat >= 220 && phaseInBeat < 520 ? Math.sin(((phaseInBeat - 220) / 300) * Math.PI) * 18 : 0;
+            suddenEvent.x = centerHeroX + lunge - recoil;
+            suddenEvent.auxX = centerBossX - lunge + recoil;
+            suddenEvent.y = 174 - lunge * 0.45;
+            suddenEvent.auxY = 174 - lunge * 0.35 - Math.abs(Math.sin(t / 280)) * 5;
+          } else {
+            const p = Math.min(1, (t - 4100) / 1300);
+            suddenEvent.x = centerHeroX - p * (centerHeroX + 60);
+            suddenEvent.auxX = centerBossX + p * (CANVAS_W + 70 - centerBossX);
+            suddenEvent.y = 174 - Math.sin(p * Math.PI) * 24;
+            suddenEvent.auxY = 174 - Math.sin(p * Math.PI) * 32;
+          }
+        } else if (suddenEvent.kind === 'GOLD_SLIME_DASH') {
+          const p = suddenEvent.elapsed / suddenEvent.duration;
+          const span = CANVAS_W + 130;
+          suddenEvent.x =
+            suddenEvent.dir === 1 ? -32 + p * span * 1.12 : CANVAS_W + 32 - p * span * 1.12;
+          suddenEvent.y = 174 - Math.abs(Math.sin(suddenEvent.elapsed / 120)) * 20;
+          suddenEvent.auxX =
+            suddenEvent.dir === 1
+              ? suddenEvent.x - 66
+              : suddenEvent.x + 66;
+          suddenEvent.auxY = 176 - Math.abs(Math.sin(suddenEvent.elapsed / 95)) * 10;
+          suddenEvent.trailClock += dt;
+          if (suddenEvent.trailClock > 85) {
+            suddenEvent.trailClock = 0;
+            particles.push({
+              x: suddenEvent.x + (Math.random() - 0.5) * 14,
+              y: suddenEvent.y - 10 - Math.random() * 12,
+              vx: -suddenEvent.dir * (0.35 + Math.random() * 0.5),
+              vy: -0.6 - Math.random() * 0.5,
+              color: Math.random() < 0.65 ? '#facc15' : '#ffffff',
+              size: 2,
+              life: 520,
+              gravity: 0.035,
+            });
+          }
+        } else if (suddenEvent.kind === 'METEOR_SHOWER') {
+          suddenEvent.meteors.forEach((m) => {
+            if (suddenEvent && suddenEvent.elapsed >= m.delay) {
+              m.x += m.vx * (dt / 16);
+              m.y += m.vy * (dt / 16);
+              if (Math.random() < 0.45 * (dt / 16)) {
+                particles.push({
+                  x: m.x,
+                  y: m.y,
+                  vx: -m.vx * 0.15,
+                  vy: -m.vy * 0.15,
+                  color: m.color,
+                  size: 2,
+                  life: 280,
+                  gravity: 0,
+                });
+              }
+            }
+          });
+        } else if (suddenEvent.kind === 'OMEGA_DRAGON_FLYOVER') {
+          const p = suddenEvent.elapsed / suddenEvent.duration;
+          suddenEvent.x =
+            suddenEvent.dir === 1
+              ? -60 + p * (CANVAS_W + 130)
+              : CANVAS_W + 60 - p * (CANVAS_W + 130);
+          suddenEvent.y = 64 + Math.sin(suddenEvent.elapsed / 320) * 8;
+          suddenEvent.trailClock += dt;
+          if (suddenEvent.trailClock > 90) {
+            suddenEvent.trailClock = 0;
+            particles.push({
+              x: suddenEvent.x - suddenEvent.dir * 16,
+              y: suddenEvent.y - 12 + (Math.random() - 0.5) * 16,
+              vx: -suddenEvent.dir * 0.25,
+              vy: 0.15,
+              color: Math.random() < 0.55 ? '#a855f7' : '#fde047',
+              size: 2,
+              life: 520,
+              gravity: 0,
+            });
+          }
+        }
+
+        if (suddenEvent.elapsed >= suddenEvent.duration) {
+          suddenEvent = null;
+          vignettesSinceSudden = 0;
+          handoffPause = 360;
+        }
+      } else if (handoffPause > 0) {
         handoffPause -= dt;
         if (handoffPause <= 0) {
-          activeGroup = nextVignette();
+          // Low-probability sudden event trigger (~15% after at least 1 normal vignette)
+          if (vignettesSinceSudden >= 1 && Math.random() < 0.15) {
+            suddenEvent = createSuddenEvent(lastSuddenKind);
+            lastSuddenKind = suddenEvent.kind;
+            vignettesSinceSudden = 0;
+          } else {
+            activeGroup = nextVignette();
+            vignettesSinceSudden += 1;
+          }
         }
       } else {
         let allExited = true;
@@ -1766,31 +2274,90 @@ export const TitleView: React.FC<TitleViewProps> = ({
             });
           }
 
+          // Optional trip & recover stumble
+          if (
+            a.behavior === 'trip_recover' &&
+            !a.didTrip &&
+            a.tripAtX !== undefined &&
+            (a.dir === 1 ? a.x >= a.tripAtX : a.x <= a.tripAtX)
+          ) {
+            a.didTrip = true;
+            a.tripTimer = 680;
+            a.symbol = 'sweat';
+            a.symbolColor = '#38bdf8';
+            a.symbolTimer = 950;
+            spawnBurst(a.x + a.dir * 6, a.baseY - 4, ['#cbd5e1', '#fde047'], 7, 0.03);
+          }
+
+          let speedMult = 1;
+          if (a.behavior === 'burst_dash') {
+            const cycle = Math.sin(a.phase * 0.42);
+            if (cycle > 0.35) {
+              speedMult = 2.05;
+              a.squashX = 1.12;
+              a.squashY = 0.88;
+              a.tiltRad = a.dir * 0.22;
+              if (Math.random() < 0.16 * (dt / 16)) {
+                spawnBurst(a.x - a.dir * 8, a.baseY - 2, ['#e2e8f0'], 2, 0.01);
+              }
+            } else if (cycle < -0.25) {
+              speedMult = 0.36;
+              a.squashX = 1.07;
+              a.squashY = 0.91;
+              a.tiltRad = a.dir * 0.07;
+            } else {
+              speedMult = 1.05;
+              a.tiltRad = Math.cos(a.phase) * 0.08;
+            }
+          } else if (a.tripTimer > 0) {
+            a.tripTimer -= dt;
+            speedMult = a.tripTimer > 420 ? 0.35 : 0;
+            a.squashX = 1.26;
+            a.squashY = 0.72;
+            a.tiltRad = a.dir * 0.82;
+            if (a.tripTimer <= 0) {
+              a.squashX = 0.82;
+              a.squashY = 1.24;
+              a.tiltRad = 0;
+              a.symbol = 'bang';
+              a.symbolColor = '#fb7185';
+              a.symbolTimer = 650;
+            }
+          } else if (a.didTrip && a.behavior === 'trip_recover') {
+            speedMult = 1.38;
+          }
+
           if (a.pauseTimer > 0) {
             a.pauseTimer -= dt;
+            a.tiltRad = Math.sin(clock / 180) * 0.05;
             if (a.pauseTimer <= 0) {
               a.facing = a.dir;
               a.squashX = 0.84;
               a.squashY = 1.18;
             }
           } else {
-            a.x += a.vx * (dt / 16);
+            a.x += a.vx * speedMult * (dt / 16);
           }
 
-          // Behavior-specific vertical motion & squash/stretch
+          // Behavior-specific vertical motion, tilt & squash/stretch
           if (a.behavior === 'fly_wave') {
             a.y = a.baseY + Math.sin(a.phase * 1.4) * a.hopAmp;
+            a.tiltRad = Math.cos(a.phase * 1.4) * a.dir * 0.12;
           } else if (a.behavior === 'fly_loop') {
             const loop = Math.sin(a.phase * 1.8);
             a.y = a.baseY + loop * a.hopAmp;
             a.x += Math.cos(a.phase * 1.8) * 0.35 * (dt / 16);
+            a.tiltRad = Math.cos(a.phase * 1.8) * 0.22;
           } else if (a.behavior === 'float_orbit') {
             a.y = a.baseY + Math.sin(a.phase * 1.5) * a.hopAmp;
+            a.tiltRad = Math.sin(a.phase * 0.9) * 0.12;
           } else if (a.behavior === 'glide') {
             a.y = a.baseY + Math.sin(a.phase) * a.hopAmp;
+            a.tiltRad = Math.cos(a.phase) * a.dir * 0.08;
           } else if (a.behavior === 'mega_bounce') {
             const arc = Math.abs(Math.sin(a.phase));
             a.y = a.baseY - arc * a.hopAmp;
+            a.tiltRad = Math.cos(a.phase) * a.dir * 0.15;
             if (arc < 0.08) {
               a.squashX = 1.24;
               a.squashY = 0.78;
@@ -1798,11 +2365,13 @@ export const TitleView: React.FC<TitleViewProps> = ({
           } else if (a.behavior === 'stomp') {
             const step = Math.abs(Math.sin(a.phase));
             a.y = a.baseY - step * a.hopAmp;
+            a.tiltRad = Math.sin(a.phase) * 0.07;
             if (a.stompSync && step < 0.06 && Math.random() < 0.35) {
               spawnBurst(a.x, a.baseY, ['#cbd5e1', '#94a3b8'], 3, 0.02);
             }
           } else if (a.behavior === 'nervous_guard') {
             a.y = a.baseY - Math.abs(Math.sin(a.phase * 1.5)) * a.hopAmp;
+            a.tiltRad = Math.sin(a.phase * 1.5) * 0.09;
             if (Math.sin(clock / 260) > 0.85 && a.pauseTimer <= 0) {
               a.facing = (-a.dir) as 1 | -1;
             } else if (a.pauseTimer <= 0) {
@@ -1811,11 +2380,61 @@ export const TitleView: React.FC<TitleViewProps> = ({
           } else if (a.behavior === 'dance') {
             a.y = a.baseY - Math.abs(Math.sin(a.phase * 1.4)) * a.hopAmp;
             a.facing = Math.sin(a.phase * 0.7) > -0.45 ? a.dir : ((-a.dir) as 1 | -1);
+            a.tiltRad = Math.sin(a.phase * 1.4) * 0.2;
+          } else if (a.behavior === 'waddle_tilt') {
+            const arc = Math.abs(Math.sin(a.phase * 1.15));
+            a.y = a.baseY - arc * a.hopAmp;
+            a.tiltRad = Math.sin(a.phase * 1.15) * 0.17;
+            if (arc < 0.1) {
+              a.squashX = 1.12;
+              a.squashY = 0.89;
+            }
+          } else if (a.behavior === 'spin_jump') {
+            const cycle = a.phase % (Math.PI * 2);
+            const arc = Math.abs(Math.sin(cycle));
+            a.y = a.baseY - arc * a.hopAmp;
+            a.tiltRad = arc > 0.28 ? a.dir * ((cycle % Math.PI) / Math.PI) * Math.PI * 2 : 0;
+            if (arc < 0.12) {
+              a.squashX = 1.2;
+              a.squashY = 0.82;
+            }
+          } else if (a.behavior === 'zigzag_weave') {
+            const depth = Math.sin(a.phase * 0.55) * (a.depthAmp ?? 10);
+            const arc = Math.abs(Math.sin(a.phase * 1.35));
+            a.y = a.baseY + depth - arc * a.hopAmp;
+            a.tiltRad = Math.cos(a.phase * 0.55) * a.dir * 0.13;
+          } else if (a.behavior === 'moonwalk_showoff') {
+            const arc = Math.abs(Math.sin(a.phase * 0.9));
+            const moon = Math.sin(a.phase * 0.36) > 0.25;
+            a.facing = moon ? ((-a.dir) as 1 | -1) : a.dir;
+            a.y = a.baseY - (moon ? arc * 1.5 : arc * a.hopAmp);
+            a.tiltRad = moon ? -a.dir * 0.16 : Math.sin(a.phase) * 0.08;
+          } else if (a.behavior === 'leapfrog') {
+            const stepIdx = Math.floor(a.phase / Math.PI);
+            const inArc = Math.abs(Math.sin(a.phase));
+            const isBigLeap = stepIdx % 3 === 2;
+            a.y = a.baseY - inArc * (isBigLeap ? a.hopAmp * 2.5 : a.hopAmp);
+            if (isBigLeap && inArc > 0.2) {
+              a.tiltRad = a.dir * ((a.phase % Math.PI) / Math.PI) * Math.PI * 2;
+              a.squashX = 0.92;
+              a.squashY = 1.12;
+            } else {
+              a.tiltRad = Math.sin(a.phase) * 0.09;
+            }
+          } else if (a.behavior === 'burst_dash') {
+            const arc = Math.abs(Math.sin(a.phase * 1.4));
+            a.y = a.baseY - arc * a.hopAmp;
           } else {
             // walk / skip / sprint / hop_chase
             const prevArc = Math.abs(Math.sin(a.phase - a.hopSpeed * dt));
             const arc = Math.abs(Math.sin(a.phase));
             a.y = a.baseY - arc * a.hopAmp;
+            const lean = a.behavior === 'sprint' ? a.dir * 0.14 : 0;
+            const wobble =
+              a.behavior === 'skip' || a.behavior === 'hop_chase'
+                ? Math.sin(a.phase) * 0.12
+                : Math.sin(a.phase) * 0.06;
+            if (a.tripTimer <= 0) a.tiltRad = lean + wobble;
             if (prevArc > 0.14 && arc <= 0.14) {
               a.squashX = 1.15;
               a.squashY = 0.86;
@@ -1846,6 +2465,12 @@ export const TitleView: React.FC<TitleViewProps> = ({
       const ctx = canvas?.getContext('2d');
       if (ctx) {
         ctx.imageSmoothingEnabled = false;
+        ctx.save();
+        if (suddenEvent && suddenEvent.shakeMs > 0) {
+          const sx = Math.round((Math.random() - 0.5) * 5);
+          const sy = Math.round((Math.random() - 0.5) * 4);
+          ctx.translate(sx, sy);
+        }
 
         // Dynamic Sky Gradient Bands (Dawn -> Day -> Sunset -> Night)
         const bandH = 30;
@@ -2012,53 +2637,183 @@ export const TitleView: React.FC<TitleViewProps> = ({
           ctx.fillRect(tx, 118 - flk, 4, 4);
         });
 
-        // Draw active vignette troupe sorted by baseY
-        const sorted = [...activeGroup].sort((a, b) => a.baseY - b.baseY);
-        sorted.forEach((a) => {
-          const sprite = getSpriteCanvas(a.spriteId);
-          const baseSz = Math.round(16 * a.scale);
-          const drawW = Math.round(baseSz * a.squashX);
-          const drawH = Math.round(baseSz * a.squashY);
-          const drawX = Math.round(a.x - drawW / 2);
-          const drawY = Math.round(a.y - drawH);
+        // Draw active vignette troupe sorted by baseY (hidden while sudden event runs)
+        if (!suddenEvent) {
+          const sorted = [...activeGroup].sort((a, b) => a.baseY - b.baseY);
+          sorted.forEach((a) => {
+            const sprite = getSpriteCanvas(a.spriteId);
+            const baseSz = Math.round(16 * a.scale);
+            const drawW = Math.round(baseSz * a.squashX);
+            const drawH = Math.round(baseSz * a.squashY);
+            const drawX = Math.round(a.x - drawW / 2);
+            const drawY = Math.round(a.y - drawH);
 
-          // Ground shadow (scales softly when airborne)
-          const heightAbove = Math.max(0, a.baseY - a.y);
-          const shadowScale = Math.max(0.45, 1 - heightAbove / 90);
-          const shadowW = Math.round(baseSz * 0.72 * shadowScale);
-          ctx.fillStyle = 'rgba(0,0,0,0.42)';
-          ctx.fillRect(
-            Math.round(a.x - shadowW / 2),
-            Math.round((a.baseY > 135 ? a.baseY : 168) - 2),
-            shadowW,
-            3
-          );
+            // Ground shadow (scales softly when airborne)
+            const heightAbove = Math.max(0, a.baseY - a.y);
+            const shadowScale = Math.max(0.45, 1 - heightAbove / 90);
+            const shadowW = Math.round(baseSz * 0.72 * shadowScale);
+            ctx.fillStyle = 'rgba(0,0,0,0.42)';
+            ctx.fillRect(
+              Math.round(a.x - shadowW / 2),
+              Math.round((a.baseY > 135 ? a.baseY : 168) - 2),
+              shadowW,
+              3
+            );
+
+            ctx.save();
+            const pivotX = Math.round(drawX + drawW / 2);
+            const pivotY = Math.round(drawY + drawH / 2);
+            ctx.translate(pivotX, pivotY);
+            if (a.tiltRad !== 0) ctx.rotate(a.tiltRad);
+            if (a.facing < 0) ctx.scale(-1, 1);
+            ctx.drawImage(sprite, Math.round(-drawW / 2), Math.round(-drawH / 2), drawW, drawH);
+            ctx.restore();
+
+            // Optional tiny pixel prop (strictly non-text)
+            if (a.prop === 'coin_bag') {
+              const charm = getSpriteCanvas('item_charm_gold');
+              ctx.drawImage(charm, Math.round(a.x + a.facing * 8 - 6), Math.round(drawY + 6), 12, 12);
+            } else if (a.prop === 'star_orb') {
+              const orbX = a.x + Math.cos(clock / 180) * 14;
+              const orbY = drawY + 4 + Math.sin(clock / 180) * 5;
+              drawPixelSymbol(ctx, 'sparkle', orbX, orbY, '#e879f9');
+            }
+
+            // Strictly wordless pixel-art emotion symbol
+            if (a.symbol) {
+              drawPixelSymbol(ctx, a.symbol, a.x, drawY - 8, a.symbolColor);
+            }
+          });
+        } else if (suddenEvent.kind === 'HERO_VS_DEMON_CLASH') {
+          const heroSpr = getSpriteCanvas('hero');
+          const bossSpr = getSpriteCanvas('boss_dragon');
+          const hSz = Math.round(16 * 1.85);
+          const bSz = Math.round(16 * 2.35);
+
+          ctx.fillStyle = 'rgba(0,0,0,0.48)';
+          ctx.fillRect(Math.round(suddenEvent.x - hSz * 0.36), 172, Math.round(hSz * 0.72), 3);
+          ctx.fillRect(Math.round(suddenEvent.auxX - bSz * 0.4), 172, Math.round(bSz * 0.8), 4);
+
+          ctx.drawImage(heroSpr, Math.round(suddenEvent.x - hSz / 2), Math.round(suddenEvent.y - hSz), hSz, hSz);
 
           ctx.save();
-          if (a.facing < 0) {
-            ctx.translate(drawX + drawW, drawY);
+          ctx.translate(Math.round(suddenEvent.auxX + bSz / 2), Math.round(suddenEvent.auxY - bSz));
+          ctx.scale(-1, 1);
+          ctx.drawImage(bossSpr, 0, 0, bSz, bSz);
+          ctx.restore();
+
+          if (suddenEvent.flashMs > 0) {
+            const clashX = Math.round((suddenEvent.x + suddenEvent.auxX) / 2);
+            const clashY = 152;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fillRect(clashX - 10, clashY - 2, 20, 4);
+            ctx.fillRect(clashX - 2, clashY - 12, 4, 24);
+            ctx.fillStyle = '#fde047';
+            ctx.fillRect(clashX - 6, clashY - 6, 12, 12);
+            drawPixelSymbol(ctx, 'bang', suddenEvent.x, suddenEvent.y - hSz - 8, '#38bdf8');
+            drawPixelSymbol(ctx, 'bang', suddenEvent.auxX, suddenEvent.auxY - bSz - 8, '#ef4444');
+          }
+        } else if (suddenEvent.kind === 'GOLD_SLIME_DASH') {
+          const gSpr = getSpriteCanvas('enemy_gold_slime');
+          const gAura = getSpriteAuraCanvas('enemy_gold_slime', '#fef08a');
+          const tSpr = getSpriteCanvas('ally_thief');
+          const gobSpr = getSpriteCanvas('enemy_goblin');
+          const gSz = 28;
+          const chSz = 25;
+
+          const gx = Math.round(suddenEvent.x - gSz / 2);
+          const gy = Math.round(suddenEvent.y - gSz);
+          const glowR = 24;
+          const rad = ctx.createRadialGradient(suddenEvent.x, suddenEvent.y - 14, 3, suddenEvent.x, suddenEvent.y - 14, glowR);
+          rad.addColorStop(0, 'rgba(254, 240, 138, 0.65)');
+          rad.addColorStop(0.6, 'rgba(250, 204, 21, 0.3)');
+          rad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+          ctx.fillStyle = rad;
+          ctx.fillRect(suddenEvent.x - glowR, suddenEvent.y - 14 - glowR, glowR * 2, glowR * 2);
+
+          ctx.fillStyle = 'rgba(250, 204, 21, 0.4)';
+          ctx.fillRect(Math.round(suddenEvent.x - 10), 172, 20, 3);
+          ctx.drawImage(gAura, gx - 1, gy - 1, gSz + 2, gSz + 2);
+          ctx.drawImage(gSpr, gx, gy, gSz, gSz);
+          drawPixelSymbol(ctx, 'sparkle', suddenEvent.x, gy - 8, '#fef08a');
+
+          const drawChaser = (spr: HTMLCanvasElement, cx: number, cy: number, sym: PixelSymbol, col: string) => {
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(Math.round(cx - 8), 174, 16, 3);
+            ctx.save();
+            if (suddenEvent && suddenEvent.dir < 0) {
+              ctx.translate(Math.round(cx + chSz / 2), Math.round(cy - chSz));
+              ctx.scale(-1, 1);
+              ctx.drawImage(spr, 0, 0, chSz, chSz);
+            } else {
+              ctx.drawImage(spr, Math.round(cx - chSz / 2), Math.round(cy - chSz), chSz, chSz);
+            }
+            ctx.restore();
+            drawPixelSymbol(ctx, sym, cx, cy - chSz - 7, col);
+          };
+          drawChaser(tSpr, suddenEvent.auxX, suddenEvent.auxY, 'bang', '#fde047');
+          drawChaser(
+            gobSpr,
+            suddenEvent.auxX - suddenEvent.dir * 32,
+            178 - Math.abs(Math.sin(clock / 90)) * 8,
+            'sweat',
+            '#38bdf8'
+          );
+        } else if (suddenEvent.kind === 'METEOR_SHOWER') {
+          suddenEvent.meteors.forEach((m) => {
+            if (suddenEvent && suddenEvent.elapsed >= m.delay && m.y < 145) {
+              ctx.fillStyle = m.color;
+              ctx.fillRect(Math.round(m.x), Math.round(m.y), 3, 3);
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(Math.round(m.x + 1), Math.round(m.y + 1), 1, 1);
+            }
+          });
+          const drawWatcher = (spriteId: string, wx: number, facing: 1 | -1, sym: PixelSymbol, col: string) => {
+            const spr = getSpriteCanvas(spriteId);
+            const sz = 27;
+            ctx.fillStyle = 'rgba(0,0,0,0.42)';
+            ctx.fillRect(Math.round(wx - 9), 174, 18, 3);
+            ctx.save();
+            if (facing < 0) {
+              ctx.translate(Math.round(wx + sz / 2), 176 - sz);
+              ctx.scale(-1, 1);
+              ctx.drawImage(spr, 0, 0, sz, sz);
+            } else {
+              ctx.drawImage(spr, Math.round(wx - sz / 2), 176 - sz, sz, sz);
+            }
+            ctx.restore();
+            drawPixelSymbol(ctx, sym, wx, 176 - sz - 8, col);
+          };
+          drawWatcher('hero', suddenEvent.x, 1, 'sparkle', '#fde047');
+          drawWatcher('ally_mage', suddenEvent.auxX, -1, 'heart', '#f472b6');
+        } else if (suddenEvent.kind === 'OMEGA_DRAGON_FLYOVER') {
+          const dSpr = getSpriteCanvas('boss_omega_dragon');
+          const dAura = getSpriteAuraCanvas('boss_omega_dragon', '#a855f7');
+          const dSz = 44;
+          // Ground shadow gliding across the cobblestone road
+          ctx.fillStyle = 'rgba(15, 10, 30, 0.36)';
+          ctx.fillRect(Math.round(suddenEvent.x - 26), 170, 52, 8);
+
+          ctx.save();
+          if (suddenEvent.dir < 0) {
+            ctx.translate(Math.round(suddenEvent.x + dSz / 2), Math.round(suddenEvent.y - dSz / 2));
             ctx.scale(-1, 1);
-            ctx.drawImage(sprite, 0, 0, drawW, drawH);
+            ctx.drawImage(dAura, -1, -1, dSz + 2, dSz + 2);
+            ctx.drawImage(dSpr, 0, 0, dSz, dSz);
           } else {
-            ctx.drawImage(sprite, drawX, drawY, drawW, drawH);
+            ctx.drawImage(dAura, Math.round(suddenEvent.x - dSz / 2) - 1, Math.round(suddenEvent.y - dSz / 2) - 1, dSz + 2, dSz + 2);
+            ctx.drawImage(dSpr, Math.round(suddenEvent.x - dSz / 2), Math.round(suddenEvent.y - dSz / 2), dSz, dSz);
           }
           ctx.restore();
 
-          // Optional tiny pixel prop (strictly non-text)
-          if (a.prop === 'coin_bag') {
-            const charm = getSpriteCanvas('item_charm_gold');
-            ctx.drawImage(charm, Math.round(a.x + a.facing * 8 - 6), Math.round(drawY + 6), 12, 12);
-          } else if (a.prop === 'star_orb') {
-            const orbX = a.x + Math.cos(clock / 180) * 14;
-            const orbY = drawY + 4 + Math.sin(clock / 180) * 5;
-            drawPixelSymbol(ctx, 'sparkle', orbX, orbY, '#e879f9');
-          }
-
-          // Strictly wordless pixel-art emotion symbol
-          if (a.symbol) {
-            drawPixelSymbol(ctx, a.symbol, a.x, drawY - 8, a.symbolColor);
-          }
-        });
+          // Onlooker slime & knight looking up in awe
+          const sSpr = getSpriteCanvas('enemy_slime');
+          const kSpr = getSpriteCanvas('ally_knight');
+          ctx.drawImage(sSpr, 170, 156, 22, 22);
+          ctx.drawImage(kSpr, 300, 152, 26, 26);
+          drawPixelSymbol(ctx, 'bang', 181, 148, '#38bdf8');
+          drawPixelSymbol(ctx, 'bang', 313, 144, '#fde047');
+        }
 
         // Playful star orbs & ranger arrows
         orbs.forEach((o) => {
@@ -2089,6 +2844,41 @@ export const TitleView: React.FC<TitleViewProps> = ({
             ctx.fillRect(Math.round(w.x), Math.round(w.y), w.size, w.size);
           }
         });
+
+        // Foreground Camera-Close Slime Peek (drawn in front of everything!)
+        if (suddenEvent && suddenEvent.kind === 'SLIME_PEEK') {
+          const isGold = suddenEvent.variant === 1;
+          const sprId = isGold ? 'enemy_gold_slime' : 'enemy_slime';
+          const spr = getSpriteCanvas(sprId);
+          const peekSz = 104;
+          const bobX = Math.round(Math.sin(clock / 380) * 3);
+          const sq = suddenEvent.flashMs > 0 ? 1.12 : 1 + Math.sin(clock / 240) * 0.03;
+          const drawW = Math.round(peekSz * sq);
+          const drawH = Math.round(peekSz * (2 - sq));
+          const px = Math.round(suddenEvent.x + bobX - drawW / 2);
+          const py = Math.round(suddenEvent.y - drawH);
+
+          if (isGold) {
+            const gAura = getSpriteAuraCanvas(sprId, '#fef08a');
+            ctx.drawImage(gAura, px - 2, py - 2, drawW + 4, drawH + 4);
+          } else {
+            ctx.fillStyle = 'rgba(0,0,0,0.38)';
+            ctx.fillRect(px + 8, py + 12, drawW - 16, drawH - 12);
+          }
+          ctx.drawImage(spr, px, py, drawW, drawH);
+
+          if (suddenEvent.elapsed > 1050 && suddenEvent.elapsed < 3700) {
+            drawPixelSymbol(
+              ctx,
+              isGold ? 'sparkle' : Math.sin(clock / 900) > 0 ? 'note' : 'heart',
+              suddenEvent.x + bobX + 44,
+              py + 22,
+              isGold ? '#fef08a' : '#38bdf8'
+            );
+          }
+        }
+
+        ctx.restore();
       }
 
       rafId = requestAnimationFrame(tick);
@@ -2099,7 +2889,13 @@ export const TitleView: React.FC<TitleViewProps> = ({
       cancelAnimationFrame(rafId);
       canvas?.removeEventListener('click', handlePointer);
     };
-  }, [save.loopCount, save.customAlly?.created]);
+  }, [
+    save.loopCount,
+    save.highestClearedLoop,
+    save.loop23FailRetreatCount,
+    save.customAllyUnlocked,
+    save.customAlly?.created,
+  ]);
 
   return (
     <div className="min-h-screen bg-[#101218] text-[#eceff4] flex flex-col items-center justify-center px-4 py-8">

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, SkipForward } from 'lucide-react';
 import { getSpriteCanvas, syncCustomAllySprite } from '../game/pixelSprites';
+import { isCustomAllyUnlocked } from '../game/data';
 import { sound } from '../game/sound';
 import { SaveState } from '../game/types';
 import { PixelSprite } from './PixelSprite';
@@ -85,7 +86,7 @@ export const StorySceneView: React.FC<StorySceneViewProps> = ({
       ];
     }
 
-    const customCreated = save.loopCount >= 2 && Boolean(save.customAlly?.created);
+    const customCreated = isCustomAllyUnlocked(save) && Boolean(save.customAlly?.created);
     const customName = save.customAlly?.name || '相棒';
 
     return [
@@ -144,7 +145,15 @@ export const StorySceneView: React.FC<StorySceneViewProps> = ({
         celebrateBurst: true,
       },
     ];
-  }, [mode, save.loopCount, save.customAlly?.created, save.customAlly?.name]);
+  }, [
+    mode,
+    save.loopCount,
+    save.highestClearedLoop,
+    save.loop23FailRetreatCount,
+    save.customAllyUnlocked,
+    save.customAlly?.created,
+    save.customAlly?.name,
+  ]);
 
   const currentBeat = beats[Math.min(stepIdx, beats.length - 1)];
   const isLastStep = stepIdx >= beats.length - 1;
@@ -526,7 +535,7 @@ export const StorySceneView: React.FC<StorySceneViewProps> = ({
           ctx.fillRect(276, 120, 2, 92);
 
           // Draw cheering crowd
-          const customCreated = save.loopCount >= 2 && Boolean(save.customAlly?.created);
+          const customCreated = isCustomAllyUnlocked(save) && Boolean(save.customAlly?.created);
           const crowd: {
             key: string;
             spriteId: string;
@@ -602,7 +611,14 @@ export const StorySceneView: React.FC<StorySceneViewProps> = ({
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [mode, save.loopCount, save.customAlly?.created]);
+  }, [
+    mode,
+    save.loopCount,
+    save.highestClearedLoop,
+    save.loop23FailRetreatCount,
+    save.customAllyUnlocked,
+    save.customAlly?.created,
+  ]);
 
   return (
     <div className="min-h-screen bg-[#101218] text-[#eceff4] flex flex-col items-center justify-center px-4 py-6">

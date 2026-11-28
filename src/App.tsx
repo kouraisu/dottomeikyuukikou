@@ -32,6 +32,7 @@ import {
   createDefaultPresets,
   CREST_EXCHANGE_OPTIONS,
   CUSTOM_ALLY_ID,
+  CUSTOM_ALLY_LOOP23_FAIL_TARGET,
   FEATURE_UNLOCKS,
   FeatureAnnouncementDef,
   FeatureUnlockDef,
@@ -64,6 +65,7 @@ import {
   INITIAL_LIFETIME_STATS,
   INITIAL_SAVE_STATE,
   INITIAL_TYPE_METER_CAPS,
+  isCustomAllyUnlocked,
   isEndlessUnlocked,
   isItemUnlockedInShop,
   isStageUnlockedForPlay,
@@ -708,6 +710,11 @@ export default function App() {
               customPixels: prev.customAlly.customPixels ? [...prev.customAlly.customPixels] : null,
             }
           : { ...INITIAL_CUSTOM_ALLY },
+        loop23FailRetreatCount: prev.loop23FailRetreatCount ?? 0,
+        customAllyUnlocked:
+          Boolean(prev.customAllyUnlocked) ||
+          nextLoop >= 4 ||
+          (prev.loop23FailRetreatCount ?? 0) >= CUSTOM_ALLY_LOOP23_FAIL_TARGET,
         lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
           totalReincarnations: 1,
         }),
@@ -1483,7 +1490,7 @@ export default function App() {
     (nextConfig: CustomAllyConfig) => {
       syncCustomAllySprite(nextConfig);
       setSave((prev) => {
-        if (prev.loopCount < 2) return prev;
+        if (!isCustomAllyUnlocked(prev)) return prev;
         const firstTime = !prev.customAlly?.created;
         const prevLv = prev.hiredAllies[CUSTOM_ALLY_ID] ?? 0;
         const nextLv = Math.max(1, prevLv);
@@ -2028,11 +2035,26 @@ export default function App() {
         ),
       };
 
+      const isLoop23DefeatOrRetreat =
+        !result.isPracticeRun &&
+        (save.loopCount === 2 || save.loopCount === 3) &&
+        (!result.victory || Boolean(result.wasManualRetreat));
+      const nextLoop23FailRetreatCount =
+        (save.loop23FailRetreatCount ?? 0) + (isLoop23DefeatOrRetreat ? 1 : 0);
+      const nextHighestClearedLoop = canReincarnate(baseUpdatedSavePreLoop)
+        ? Math.max(save.highestClearedLoop ?? 0, save.loopCount)
+        : (save.highestClearedLoop ?? 0);
+      const nextCustomAllyUnlocked =
+        Boolean(save.customAllyUnlocked) ||
+        save.loopCount >= 4 ||
+        nextHighestClearedLoop >= 3 ||
+        nextLoop23FailRetreatCount >= CUSTOM_ALLY_LOOP23_FAIL_TARGET;
+
       const baseUpdatedSave: SaveState = {
         ...baseUpdatedSavePreLoop,
-        highestClearedLoop: canReincarnate(baseUpdatedSavePreLoop)
-          ? Math.max(save.highestClearedLoop ?? 0, save.loopCount)
-          : (save.highestClearedLoop ?? 0),
+        highestClearedLoop: nextHighestClearedLoop,
+        loop23FailRetreatCount: nextLoop23FailRetreatCount,
+        customAllyUnlocked: nextCustomAllyUnlocked,
       };
 
       const evaluated = evaluateAchievements(baseUpdatedSave, result);
@@ -2484,9 +2506,8 @@ export default function App() {
             onToggleAutoRestock={handleToggleAutoRestock}
             onStartExpedition={handleStartExpedition}
             onOpenCustomAlly={() => {
-              if (save.loopCount < 2) {
+              if (!isCustomAllyUnlocked(save)) {
                 sound.click();
-                showNotice('オリキャラ「まっさらちゃん」は第2周目に入ってから解放されます！');
                 return;
               }
               sound.click();
@@ -2656,7 +2677,7 @@ export default function App() {
         </div>
       )}
 
-      {customAllyOpen && save.loopCount >= 2 && (
+      {customAllyOpen && isCustomAllyUnlocked(save) && (
         <CustomAllyModal
           config={save.customAlly}
           onSave={handleSaveCustomAlly}

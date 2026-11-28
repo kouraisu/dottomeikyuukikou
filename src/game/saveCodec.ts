@@ -4,6 +4,7 @@ import {
   CONVENIENCE_UPGRADE_IDS,
   createDefaultPresets,
   CUSTOM_ALLY_ID,
+  CUSTOM_ALLY_LOOP23_FAIL_TARGET,
   getMaxStageForLoop,
   INITIAL_CUSTOM_ALLY,
   INITIAL_LIFETIME_STATS,
@@ -71,9 +72,20 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
   const allAchUnlocked = ALL_ACHIEVEMENT_IDS.every((id) => unlockedAchievements.includes(id));
   const endlessUnlocked = highestClearedLoop >= 5 || loopCount >= 6;
   const maxStage = getMaxStageForLoop(loopCount, allAchUnlocked, endlessUnlocked);
+  const loop23FailRetreatCount =
+    typeof parsed.loop23FailRetreatCount === 'number' &&
+    Number.isFinite(parsed.loop23FailRetreatCount) &&
+    parsed.loop23FailRetreatCount >= 0
+      ? Math.floor(parsed.loop23FailRetreatCount)
+      : 0;
+  const customAllyUnlocked =
+    Boolean(parsed.customAllyUnlocked) ||
+    loopCount >= 4 ||
+    highestClearedLoop >= 3 ||
+    loop23FailRetreatCount >= CUSTOM_ALLY_LOOP23_FAIL_TARGET;
   const activeAllies = Array.isArray(parsed.activeAllies)
     ? parsed.activeAllies.filter(
-        (x): x is string => typeof x === 'string' && (loopCount >= 2 || x !== CUSTOM_ALLY_ID)
+        (x): x is string => typeof x === 'string' && (customAllyUnlocked || x !== CUSTOM_ALLY_ID)
       )
     : [];
   const pouch =
@@ -393,6 +405,8 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
         customPixels,
       };
     })(),
+    customAllyUnlocked,
+    loop23FailRetreatCount,
     seenStoryOpening:
       typeof parsed.seenStoryOpening === 'boolean'
         ? parsed.seenStoryOpening

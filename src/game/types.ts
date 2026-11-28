@@ -481,6 +481,8 @@ export interface SaveState {
   seenAnnouncements: string[]; // Feature / milestone unlock announcement IDs already acknowledged
   lifetimeStats: LifetimeStats; // Cumulative play history & economy/combat statistics
   customAlly: CustomAllyConfig; // Player-created original Tavern ally (like Massara-nyan)
+  customAllyUnlocked?: boolean; // Sticky unlock flag once secret unlock condition is met
+  loop23FailRetreatCount?: number; // Defeats or retreats accumulated during Loops 2 and 3
   seenStoryOpening?: boolean;
   seenStoryEnding?: boolean;
 }

@@ -58,6 +58,7 @@ import {
   hasConvenience,
   INSTANT_EVENT_DESCRIPTIONS,
   INSTANT_EVENTS,
+  isCustomAllyUnlocked,
   isEndlessUnlocked,
   isItemUnlockedInShop,
   isStageClearedInCurrentLoop,
@@ -235,6 +236,7 @@ export const TownView: React.FC<TownViewProps> = ({
   const endlessUnlocked = useMemo(() => isEndlessUnlocked(save), [save]);
   const trueEndgameUnlocked = useMemo(() => isTrueEndgameUnlocked(save), [save]);
   const trueEndgameVisible = useMemo(() => isTrueEndgameVisible(save), [save]);
+  const customAllyUnlocked = useMemo(() => isCustomAllyUnlocked(save), [save]);
   const loreUnlocked = save.loopCount >= 2 || (save.highestClearedLoop ?? 0) >= 1;
   const presets = useMemo(() => save.presets ?? createDefaultPresets(), [save.presets]);
   const activeSynergies = useMemo(() => getActiveSynergies(save), [save]);
@@ -1284,7 +1286,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 {[...save.partyOrder].reverse().map((memberId) => {
                   const orderIdx = save.partyOrder.indexOf(memberId);
                   const isHero = memberId === 'hero';
-                  if (!isHero && memberId === CUSTOM_ALLY_ID && save.loopCount < 2) return null;
+                  if (!isHero && memberId === CUSTOM_ALLY_ID && !customAllyUnlocked) return null;
                   const ally = !isHero ? getAllyDef(memberId, save) : null;
                   if (!isHero && !ally) return null;
                   const label =
@@ -1331,7 +1333,7 @@ export const TownView: React.FC<TownViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 ...ALLIES,
-                ...(save.loopCount >= 2 && save.customAlly?.created
+                ...(customAllyUnlocked && save.customAlly?.created
                   ? [getCustomAllyDef(save.customAlly)]
                   : []),
               ].map((ally) => {
@@ -1499,7 +1501,7 @@ export const TownView: React.FC<TownViewProps> = ({
                         </div>
                       )}
 
-                      {ally.id === CUSTOM_ALLY_ID && (
+                      {ally.id === CUSTOM_ALLY_ID && customAllyUnlocked && (
                         <button
                           type="button"
                           onClick={onOpenCustomAlly}
@@ -1513,76 +1515,39 @@ export const TownView: React.FC<TownViewProps> = ({
                 );
               })}
 
-              {save.loopCount < 2 ? (
-                <div className="pixel-slot p-3.5 flex flex-col justify-between gap-3 border-dashed border-2 border-[#363d52] bg-[#12151e] opacity-90">
+              {customAllyUnlocked && !save.customAlly?.created && (
+                <div className="pixel-slot p-3.5 flex flex-col justify-between gap-3 border-dashed border-2 border-amber-500/55 bg-[#141722]">
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-[#171b26] border border-[#2d3447] flex items-center justify-center shrink-0 relative">
-                      <PixelSprite id="ally_custom_blank" size={36} className="opacity-35 grayscale" />
+                    <div className="w-12 h-12 bg-[#1b1f2b] border border-amber-500/40 flex items-center justify-center shrink-0">
+                      <PixelSprite id="ally_custom_blank" size={36} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-sm text-slate-200">
-                          まっさらな仲間（オリキャラ枠）
+                        <span className="font-bold text-sm text-amber-200">
+                          まっさらな仲間（隠しオリキャラ枠）
                         </span>
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold bg-[#1b2030] border border-amber-500/45 text-amber-300 shrink-0">
-                          <Lock className="w-3 h-3" />
-                          第2周目から解放
+                        <span className="font-num text-[11px] text-emerald-300 font-bold shrink-0">
+                          作成無料
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">
-                        未解放 · 魔王討伐後の「転生（第2周目）」で解禁
+                        マイキャラ · 名前・ドット絵・役割を自由作成
                       </div>
-                      <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                        第2周目に入ると解放！色・パーツや16×16自由お絵描きで自分だけのオリジナル仲間「まっさらちゃん」を1人作成して連れ歩けるようになります。
+                      <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                        色やパーツの組み合わせ、または16×16の自由お絵描きであなただけのオリジナル仲間を1人作成できます（性能は控えめなのでお好み重視でOK！）。
                       </p>
                     </div>
                   </div>
                   <div className="pt-2 border-t border-[#232836]">
                     <button
                       type="button"
-                      disabled
-                      className="w-full py-2 px-4 text-xs font-bold bg-[#1c212e] text-slate-400 border border-[#2d3447] flex items-center justify-center gap-1.5 cursor-not-allowed"
+                      onClick={onOpenCustomAlly}
+                      className="w-full py-2 px-4 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer"
                     >
-                      <Lock className="w-3.5 h-3.5 text-amber-300" />
-                      第2周目に入ってから解放
+                      オリキャラを作成する！
                     </button>
                   </div>
                 </div>
-              ) : (
-                !save.customAlly?.created && (
-                  <div className="pixel-slot p-3.5 flex flex-col justify-between gap-3 border-dashed border-2 border-amber-500/55 bg-[#141722]">
-                    <div className="flex items-start gap-3">
-                      <div className="w-12 h-12 bg-[#1b1f2b] border border-amber-500/40 flex items-center justify-center shrink-0">
-                        <PixelSprite id="ally_custom_blank" size={36} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-sm text-amber-200">
-                            まっさらな仲間（オリキャラ枠）
-                          </span>
-                          <span className="font-num text-[11px] text-emerald-300 font-bold shrink-0">
-                            作成無料
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          マイキャラ · 名前・ドット絵・役割を自由作成
-                        </div>
-                        <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                          色やパーツの組み合わせ、または16×16の自由お絵描きであなただけのオリジナル仲間を1人作成できます（性能は控えめなのでお好み重視でOK！）。
-                        </p>
-                      </div>
-                    </div>
-                    <div className="pt-2 border-t border-[#232836]">
-                      <button
-                        type="button"
-                        onClick={onOpenCustomAlly}
-                        className="w-full py-2 px-4 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer"
-                      >
-                        オリキャラを作成する！
-                      </button>
-                    </div>
-                  </div>
-                )
               )}
             </div>
           </section>

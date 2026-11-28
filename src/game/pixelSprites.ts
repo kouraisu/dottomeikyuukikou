@@ -30,6 +30,8 @@ const PAL: Palette = {
   P: '#6b21a8', // deep purple
   m: '#f43f5e', // rose magenta
   t: '#14b8a6', // teal
+  Q: '#fef08a', // dazzling pale gold highlight
+  G: '#fbbf24', // radiant warm gold
 };
 
 export const SPRITES: Record<string, string[]> = {
@@ -288,6 +290,24 @@ export const SPRITES: Record<string, string[]> = {
     '..kCCCCCCCCCCk..',
     '...kkkkkkkkkk...',
     '................',
+    '................',
+  ],
+  enemy_gold_slime: [
+    '.w............Q.',
+    'wQw..k.kk.k..QQQ',
+    '.w..kQkQQkQk..Q.',
+    '....kGyyyyGk....',
+    '...kkyQQQQykk...',
+    '..kyQwwwwwwQyk..',
+    '.kyQwyGGGGywQyk.',
+    '.kyyGGGGGGGGyyk.',
+    'kyyykGGGGGGkyyyk',
+    'kyyykGGGGGGkyyyk',
+    'kGGGGyQQQQyGGGGk',
+    'kYYGGGGGGGGGGYYk',
+    '.kYYYYGGGGYYYYk.',
+    '..kkkkkkkkkkkk..',
+    '..Q..........w..',
     '................',
   ],
   enemy_bat: [

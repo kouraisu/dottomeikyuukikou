@@ -1321,7 +1321,9 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
           sound.hit(true);
           sound.coin();
           awardMaterial(0.65, 'magic_stone');
-          spawnParticles(345, 175, '#facc15', 16, 1.3);
+          spawnParticles(345, 175, '#facc15', 22, 1.5);
+          spawnParticles(345, 170, '#fef08a', 14, 1.3);
+          spawnParticles(345, 168, '#ffffff', 8, 1.2);
           if (g > 0) addFloatText(340, 152, `+${g}G`, '#facc15');
           pushLog(
             isPracticeRun
@@ -3020,15 +3022,19 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
                 bossAtkBuffPct = 0;
                 bossDefBuffFlat = 0;
 
-                // Ally Overdrive skill revives fallen allies between floors
+                // Ally Overdrive skill revives fallen allies between floors (50% chance)
+                // Boss Rush gimmick always revives fallen allies at 25% HP
                 if (skillBonus.allyOverdrive || stage.isBossRush) {
-                  const revivePct = skillBonus.allyOverdrive ? 0.4 : 0.25;
                   party.forEach((member) => {
                     if (!member.isHero && !member.alive) {
-                      member.alive = true;
-                      member.hp = Math.max(1, Math.round(member.maxHp * revivePct));
-                      addFloatText(member.x + 8, member.y - 10, '戦線復帰!', '#38bdf8');
-                      pushLog(`${member.name} が戦線へ復帰した！`, 'heal');
+                      const overdriveTriggered = skillBonus.allyOverdrive && Math.random() < 0.5;
+                      if (overdriveTriggered || stage.isBossRush) {
+                        const revivePct = overdriveTriggered ? 0.4 : 0.25;
+                        member.alive = true;
+                        member.hp = Math.max(1, Math.round(member.maxHp * revivePct));
+                        addFloatText(member.x + 8, member.y - 10, '戦線復帰!', '#38bdf8');
+                        pushLog(`${member.name} が戦線へ復帰した！`, 'heal');
+                      }
                     }
                   });
                 }
@@ -3293,9 +3299,43 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
             ctx.drawImage(spr, 330, 146, 36, 36);
           } else if (encounter.kind === 'EVENT_INSTANT' && encounter.instantDef) {
             const spr = getSpriteCanvas(encounter.instantDef.spriteId);
-            ctx.fillStyle = 'rgba(0,0,0,0.45)';
-            ctx.fillRect(332, 178, 30, 6);
-            ctx.drawImage(spr, 330, 146, 36, 36);
+            if (encounter.instantDef.kind === 'STRAY_SLIME') {
+              const pulse = 0.5 + 0.5 * Math.sin(animClock / 130);
+              const cx = 348;
+              const cy = 164;
+              const glowR = 26 + pulse * 6;
+              const rad = ctx.createRadialGradient(cx, cy, 4, cx, cy, glowR);
+              rad.addColorStop(0, `rgba(254, 240, 138, ${(0.55 + 0.25 * pulse).toFixed(2)})`);
+              rad.addColorStop(0.55, `rgba(250, 204, 21, ${(0.32 + 0.18 * pulse).toFixed(2)})`);
+              rad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+              ctx.fillStyle = rad;
+              ctx.fillRect(cx - glowR, cy - glowR, glowR * 2, glowR * 2);
+
+              ctx.fillStyle = 'rgba(250, 204, 21, 0.35)';
+              ctx.fillRect(331, 178, 34, 6);
+
+              const auraSpr = getSpriteAuraCanvas(encounter.instantDef.spriteId, '#fef08a');
+              ctx.save();
+              ctx.globalAlpha = 0.55 + 0.35 * pulse;
+              ctx.drawImage(auraSpr, 329, 145, 38, 38);
+              ctx.restore();
+              ctx.drawImage(spr, 330, 146, 36, 36);
+
+              // Orbiting twinkling sparkles for extra bling
+              for (let s = 0; s < 4; s++) {
+                const ang = animClock / 260 + (s * Math.PI) / 2;
+                const sx = Math.round(cx + Math.cos(ang) * 19);
+                const sy = Math.round(cy + Math.sin(ang * 1.3) * 14);
+                const twinkle = Math.sin(animClock / 95 + s * 1.7) > 0;
+                ctx.fillStyle = twinkle ? '#ffffff' : '#fde047';
+                ctx.fillRect(sx - 1, sy, 3, 1);
+                ctx.fillRect(sx, sy - 1, 1, 3);
+              }
+            } else {
+              ctx.fillStyle = 'rgba(0,0,0,0.45)';
+              ctx.fillRect(332, 178, 30, 6);
+              ctx.drawImage(spr, 330, 146, 36, 36);
+            }
           } else {
             encounter.enemies.forEach((e, idx) => {
               if (!e.alive) return;
