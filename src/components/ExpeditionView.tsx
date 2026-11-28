@@ -4,6 +4,7 @@ import {
   BLESSINGS,
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
+  getItemEngravingDef,
   isTrueEndgameVisible,
   ITEMS,
   MATERIAL_INFO,
@@ -520,6 +521,7 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
                 {hud.carriedSlots.map((slot) => {
                   const justTriggered = now - slot.lastTriggeredAt < 1200;
                   const depleted = slot.isConsumable && slot.remainingUses <= 0;
+                  const eng = getItemEngravingDef(slot.engravingId);
 
                   return (
                     <div
@@ -536,6 +538,11 @@ export const ExpeditionView: React.FC<ExpeditionViewProps> = ({
                       <div className="text-[11px] font-medium text-slate-200 truncate w-full">
                         {slot.name}
                       </div>
+                      {eng && (
+                        <span className={`px-1 py-0.5 text-[9px] font-bold border leading-none ${eng.badgeBgClass}`}>
+                          [{eng.shortTag}]
+                        </span>
+                      )}
                       <div className="font-num text-[10px] text-amber-300">
                         {slot.isConsumable
                           ? slot.usedInRun

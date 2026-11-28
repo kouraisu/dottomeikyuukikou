@@ -83,6 +83,40 @@ export interface AutoEffect {
   description: string;
 }
 
+export type ItemEngravingId =
+  | 'crimson'
+  | 'aegis'
+  | 'swift'
+  | 'leech'
+  | 'bond'
+  | 'fortune';
+
+export interface ItemEngravingDef {
+  id: ItemEngravingId;
+  name: string;
+  shortTag: string;
+  colorClass: string;
+  badgeBgClass: string;
+  description: string;
+  itemStatsBoostPct?: number;
+  consumablePowerPct?: number;
+  heroAtkPct?: number;
+  heroDefPct?: number;
+  heroHpPct?: number;
+  spdPct?: number;
+  critPct?: number;
+  critDmgPct?: number;
+  lifestealPct?: number;
+  dmgReductionPct?: number;
+  roomHeal?: number;
+  allyPowerPct?: number;
+  allyHpPct?: number;
+  allySpdPct?: number;
+  allyCritPct?: number;
+  goldPct?: number;
+  dropPct?: number;
+}
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -478,6 +512,7 @@ export interface SaveState {
   practiceLoopCount: number | null; // Loop 2+ provisional dive at previously fought loop multiplier
   presets: LoadoutPreset[]; // Loop 3+ loadout presets (4 slots)
   itemRefineLevels: Record<string, number>; // Forge +0..+5 item refinement levels in current loop
+  itemEngravings: Partial<Record<string, ItemEngravingId>>; // Loop 5+ Forge runic engravings on items
   seenAnnouncements: string[]; // Feature / milestone unlock announcement IDs already acknowledged
   lifetimeStats: LifetimeStats; // Cumulative play history & economy/combat statistics
   customAlly: CustomAllyConfig; // Player-created original Tavern ally (like Massara-nyan)
@@ -601,4 +636,5 @@ export interface CarriedSlotStatus {
   maxUses: number;
   usedInRun: boolean;
   lastTriggeredAt: number; // timestamp ms for visual flash
+  engravingId?: ItemEngravingId;
 }

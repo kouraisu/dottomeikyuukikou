@@ -23,6 +23,7 @@ import {
   CustomAllyHeadgear,
   CustomAllyStyle,
   CustomAllyWeapon,
+  ItemEngravingId,
   LifetimeStats,
   LoadoutPreset,
   RunHistoryEntry,
@@ -169,6 +170,23 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     });
   }
 
+  const validEngravings = new Set<ItemEngravingId>([
+    'crimson',
+    'aegis',
+    'swift',
+    'leech',
+    'bond',
+    'fortune',
+  ]);
+  const itemEngravings: Partial<Record<string, ItemEngravingId>> = {};
+  if (parsed.itemEngravings && typeof parsed.itemEngravings === 'object') {
+    Object.entries(parsed.itemEngravings).forEach(([id, eng]) => {
+      if (ITEMS[id] && typeof eng === 'string' && validEngravings.has(eng as ItemEngravingId)) {
+        itemEngravings[id] = eng as ItemEngravingId;
+      }
+    });
+  }
+
   const defaultSeenAnnouncements: string[] = [];
   if (!Array.isArray(parsed.seenAnnouncements)) {
     const preCleared = loopCount >= 2 ? 99 : Math.max(0, Math.floor(parsed.highestClearedStage ?? 0));
@@ -177,6 +195,7 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     if (preCleared >= 3) defaultSeenAnnouncements.push('unlock_s3');
     if (preCleared >= 4) defaultSeenAnnouncements.push('unlock_s4');
     if (loopCount >= 2) defaultSeenAnnouncements.push('unlock_reincarnate');
+    if (loopCount >= 5) defaultSeenAnnouncements.push('unlock_loop5_engrave');
   }
   const seenAnnouncements = Array.isArray(parsed.seenAnnouncements)
     ? parsed.seenAnnouncements.filter((x): x is string => typeof x === 'string')
@@ -311,6 +330,7 @@ export function sanitizeSaveState(parsed: Partial<SaveState>): SaveState {
     practiceLoopCount,
     presets,
     itemRefineLevels,
+    itemEngravings,
     seenAnnouncements,
     lifetimeStats: (() => {
       const raw = (parsed.lifetimeStats ?? {}) as Partial<LifetimeStats>;

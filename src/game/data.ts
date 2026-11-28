@@ -15,6 +15,8 @@ import {
   InstantEventDef,
   ItemCategory,
   ItemDef,
+  ItemEngravingDef,
+  ItemEngravingId,
   ItemStats,
   LifetimeStats,
   LoadoutPreset,
@@ -2888,6 +2890,7 @@ export const INITIAL_SAVE_STATE: SaveState = {
   practiceLoopCount: null,
   presets: createDefaultPresets(),
   itemRefineLevels: {},
+  itemEngravings: {},
   seenAnnouncements: [],
   lifetimeStats: {
     playTimeSeconds: 0,
@@ -3746,6 +3749,156 @@ export const INSTANT_EVENT_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const MAX_ITEM_REFINE = 5;
+export const ENGRAVING_UNLOCK_LOOP = 5;
+
+export const ITEM_ENGRAVINGS: ItemEngravingDef[] = [
+  {
+    id: 'crimson',
+    name: '覇道の刻印',
+    shortTag: '覇道',
+    colorClass: 'text-rose-300',
+    badgeBgClass: 'bg-rose-950/80 border-rose-400/70 text-rose-200',
+    description: '装備性能+30% · 勇者攻撃+16% · 会心率+8%',
+    itemStatsBoostPct: 30,
+    heroAtkPct: 16,
+    critPct: 8,
+  },
+  {
+    id: 'aegis',
+    name: '守護の刻印',
+    shortTag: '守護',
+    colorClass: 'text-sky-300',
+    badgeBgClass: 'bg-sky-950/80 border-sky-400/70 text-sky-200',
+    description: '装備性能+30% · 勇者防御+18% · 勇者最大HP+18%',
+    itemStatsBoostPct: 30,
+    heroDefPct: 18,
+    heroHpPct: 18,
+  },
+  {
+    id: 'swift',
+    name: '神速の刻印',
+    shortTag: '神速',
+    colorClass: 'text-emerald-300',
+    badgeBgClass: 'bg-emerald-950/80 border-emerald-400/70 text-emerald-200',
+    description: '装備性能+20% · 攻撃速度+18% · 会心ダメ+25% · 仲間速度+10%',
+    itemStatsBoostPct: 20,
+    spdPct: 18,
+    critDmgPct: 25,
+    allySpdPct: 10,
+  },
+  {
+    id: 'leech',
+    name: '吸魂の刻印',
+    shortTag: '吸魂',
+    colorClass: 'text-fuchsia-300',
+    badgeBgClass: 'bg-fuchsia-950/80 border-fuchsia-400/70 text-fuchsia-200',
+    description: '装備性能+20% · 吸血+7% · 被ダメ-4% · 部屋移動HP+35',
+    itemStatsBoostPct: 20,
+    lifestealPct: 7,
+    dmgReductionPct: 4,
+    roomHeal: 35,
+  },
+  {
+    id: 'bond',
+    name: '絆魂の刻印',
+    shortTag: '絆魂',
+    colorClass: 'text-violet-300',
+    badgeBgClass: 'bg-violet-950/80 border-violet-400/70 text-violet-200',
+    description: '装備性能+20% · 仲間能力+25% · 仲間HP+20% · 仲間会心+8%',
+    itemStatsBoostPct: 20,
+    allyPowerPct: 25,
+    allyHpPct: 20,
+    allyCritPct: 8,
+  },
+  {
+    id: 'fortune',
+    name: '黄金の刻印',
+    shortTag: '黄金',
+    colorClass: 'text-amber-300',
+    badgeBgClass: 'bg-amber-950/80 border-amber-400/70 text-amber-200',
+    description: '消耗品威力+30% · 獲得G+45% · 素材ドロップ+30%',
+    consumablePowerPct: 30,
+    goldPct: 45,
+    dropPct: 30,
+  },
+];
+
+export function isItemEngravingUnlocked(save: Pick<SaveState, 'loopCount'>): boolean {
+  return (save.loopCount ?? 1) >= ENGRAVING_UNLOCK_LOOP;
+}
+
+export function getItemEngravingDef(
+  engravingId?: ItemEngravingId | null
+): ItemEngravingDef | undefined {
+  if (!engravingId) return undefined;
+  return ITEM_ENGRAVINGS.find((e) => e.id === engravingId);
+}
+
+export function getItemEngravingCost(itemId: string): {
+  gold: number;
+  iron: number;
+  stone: number;
+  scroll: number;
+} {
+  const item = ITEMS[itemId];
+  if (item?.isUltimate || item?.isForgeExclusive) {
+    return { gold: 1850, iron: 14, stone: 9, scroll: 6 };
+  }
+  if (item?.rarity === 'EPIC') {
+    return { gold: 1100, iron: 10, stone: 6, scroll: 4 };
+  }
+  if (item?.rarity === 'RARE') {
+    return { gold: 640, iron: 6, stone: 4, scroll: 2 };
+  }
+  return { gold: 380, iron: 4, stone: 3, scroll: 1 };
+}
+
+export function getEngravingSummaryFromPouch(
+  pouch: (string | null)[],
+  itemEngravings?: Partial<Record<string, ItemEngravingId>>
+) {
+  const out = {
+    heroAtkPct: 0,
+    heroDefPct: 0,
+    heroHpPct: 0,
+    spdPct: 0,
+    critPct: 0,
+    critDmgPct: 0,
+    lifestealPct: 0,
+    dmgReductionPct: 0,
+    roomHeal: 0,
+    allyPowerPct: 0,
+    allyHpPct: 0,
+    allySpdPct: 0,
+    allyCritPct: 0,
+    goldPct: 0,
+    dropPct: 0,
+    engravedCount: 0,
+  };
+  if (!itemEngravings) return out;
+  pouch.forEach((itemId) => {
+    if (!itemId) return;
+    const eng = getItemEngravingDef(itemEngravings[itemId]);
+    if (!eng) return;
+    out.engravedCount += 1;
+    out.heroAtkPct += eng.heroAtkPct ?? 0;
+    out.heroDefPct += eng.heroDefPct ?? 0;
+    out.heroHpPct += eng.heroHpPct ?? 0;
+    out.spdPct += eng.spdPct ?? 0;
+    out.critPct += eng.critPct ?? 0;
+    out.critDmgPct += eng.critDmgPct ?? 0;
+    out.lifestealPct += eng.lifestealPct ?? 0;
+    out.dmgReductionPct += eng.dmgReductionPct ?? 0;
+    out.roomHeal += eng.roomHeal ?? 0;
+    out.allyPowerPct += eng.allyPowerPct ?? 0;
+    out.allyHpPct += eng.allyHpPct ?? 0;
+    out.allySpdPct += eng.allySpdPct ?? 0;
+    out.allyCritPct += eng.allyCritPct ?? 0;
+    out.goldPct += eng.goldPct ?? 0;
+    out.dropPct += eng.dropPct ?? 0;
+  });
+  return out;
+}
 
 export function getItemRefineMult(refineLevel: number): number {
   return 1 + Math.max(0, Math.min(MAX_ITEM_REFINE, refineLevel)) * 0.15;
@@ -3753,13 +3906,16 @@ export function getItemRefineMult(refineLevel: number): number {
 
 export function getItemEffectiveStats(
   itemId: string,
-  refineLevels?: Record<string, number>
+  refineLevels?: Record<string, number>,
+  itemEngravings?: Partial<Record<string, ItemEngravingId>>
 ): ItemStats | undefined {
   const item = ITEMS[itemId];
   if (!item?.stats) return undefined;
   const lv = Math.max(0, Math.min(MAX_ITEM_REFINE, (refineLevels ?? {})[itemId] ?? 0));
-  if (lv === 0) return item.stats;
-  const mult = getItemRefineMult(lv);
+  const eng = getItemEngravingDef((itemEngravings ?? {})[itemId]);
+  const engMult = 1 + (eng?.itemStatsBoostPct ?? 0) / 100;
+  if (lv === 0 && engMult === 1) return item.stats;
+  const mult = getItemRefineMult(lv) * engMult;
   const s = item.stats;
   return {
     atk: s.atk !== undefined ? (s.atk >= 0 ? Math.round(s.atk * mult) : s.atk) : undefined,
@@ -3777,15 +3933,18 @@ export function getItemEffectiveStats(
 
 export function getItemEffectiveAutoPower(
   itemId: string,
-  refineLevels?: Record<string, number>
+  refineLevels?: Record<string, number>,
+  itemEngravings?: Partial<Record<string, ItemEngravingId>>
 ): number {
   const item = ITEMS[itemId];
   if (!item?.autoEffect) return 0;
   const lv = Math.max(0, Math.min(MAX_ITEM_REFINE, (refineLevels ?? {})[itemId] ?? 0));
+  const eng = getItemEngravingDef((itemEngravings ?? {})[itemId]);
+  const consPct = eng?.consumablePowerPct ?? 0;
   if (item.autoEffect.kind === 'REVIVE') {
-    return Math.min(100, item.autoEffect.power + lv * 7);
+    return Math.min(100, item.autoEffect.power + lv * 7 + Math.round(consPct * 0.4));
   }
-  return Math.round(item.autoEffect.power * getItemRefineMult(lv));
+  return Math.round(item.autoEffect.power * getItemRefineMult(lv) * (1 + consPct / 100));
 }
 
 export function getItemRefineCost(
@@ -4256,7 +4415,7 @@ export function computePartyPower(save: SaveState): number {
     if (!itemId) return;
     const item = ITEMS[itemId];
     if (!item) return;
-    const stats = getItemEffectiveStats(itemId, save.itemRefineLevels);
+    const stats = getItemEffectiveStats(itemId, save.itemRefineLevels, save.itemEngravings);
     if (stats) {
       atk += stats.atk ?? 0;
       def += stats.def ?? 0;
@@ -4264,7 +4423,7 @@ export function computePartyPower(save: SaveState): number {
       bonus += (stats.crit ?? 0) * 0.6 + (stats.spd ?? 0) * 0.5 + (stats.lifesteal ?? 0) * 1.2;
     }
     if (item.autoEffect) {
-      bonus += getItemEffectiveAutoPower(itemId, save.itemRefineLevels) * 0.35;
+      bonus += getItemEffectiveAutoPower(itemId, save.itemRefineLevels, save.itemEngravings) * 0.35;
     }
   });
 
@@ -4285,15 +4444,16 @@ export function computePartyPower(save: SaveState): number {
   const skillBonus = getSkillTreeBonuses(save.unlockedSkills, save.spMasteryLevel);
   const achBonus = getAchievementBonuses(save);
   const synBonus = getSynergySummary(save);
-  atk *= 1 + (compBonus.atkPct + skillBonus.atkPct + achBonus.atkPct + synBonus.atkPct) / 100;
-  def *= 1 + (compBonus.defPct + skillBonus.defPct + achBonus.defPct + synBonus.defPct) / 100;
-  hp *= 1 + (compBonus.hpPct + skillBonus.hpPct + achBonus.hpPct + synBonus.hpPct) / 100;
+  const engBonus = getEngravingSummaryFromPouch(save.pouch, save.itemEngravings);
+  atk *= 1 + (compBonus.atkPct + skillBonus.atkPct + achBonus.atkPct + synBonus.atkPct + engBonus.heroAtkPct) / 100;
+  def *= 1 + (compBonus.defPct + skillBonus.defPct + achBonus.defPct + synBonus.defPct + engBonus.heroDefPct) / 100;
+  hp *= 1 + (compBonus.hpPct + skillBonus.hpPct + achBonus.hpPct + synBonus.hpPct + engBonus.heroHpPct) / 100;
   bonus +=
-    (skillBonus.critPct + achBonus.critPct + synBonus.critPct) * 0.6 +
-    (skillBonus.critDmgPct + achBonus.critDmgPct + synBonus.critDmgPct) * 0.25 +
-    (skillBonus.spdPct + achBonus.spdPct + synBonus.spdPct) * 0.5 +
-    (skillBonus.lifestealPct + achBonus.lifestealPct + synBonus.lifestealPct) * 1.2 +
-    (skillBonus.dmgReductionPct + achBonus.dmgReductionPct + synBonus.dmgReductionPct) * 1.5 +
+    (skillBonus.critPct + achBonus.critPct + synBonus.critPct + engBonus.critPct) * 0.6 +
+    (skillBonus.critDmgPct + achBonus.critDmgPct + synBonus.critDmgPct + engBonus.critDmgPct) * 0.25 +
+    (skillBonus.spdPct + achBonus.spdPct + synBonus.spdPct + engBonus.spdPct) * 0.5 +
+    (skillBonus.lifestealPct + achBonus.lifestealPct + synBonus.lifestealPct + engBonus.lifestealPct) * 1.2 +
+    (skillBonus.dmgReductionPct + achBonus.dmgReductionPct + synBonus.dmgReductionPct + engBonus.dmgReductionPct) * 1.5 +
     synBonus.burnChance * 0.4;
 
   const shareRate = skillBonus.heroStatSharePct / 100;
@@ -4305,10 +4465,10 @@ export function computePartyPower(save: SaveState): number {
     if (!ally || lv <= 0) return;
     const atkMult =
       (1 + (lv - 1) * 0.2 + rank * 0.12 + gear * 0.16) *
-      (1 + (skillBonus.allyPowerPct + blessAllyPct + achBonus.allyPowerPct + synBonus.allyPowerPct) / 100);
+      (1 + (skillBonus.allyPowerPct + blessAllyPct + achBonus.allyPowerPct + synBonus.allyPowerPct + engBonus.allyPowerPct) / 100);
     const hpMult =
       (1 + (lv - 1) * 0.2 + rank * 0.12 + gear * 0.14) *
-      (1 + (skillBonus.allyHpPct + blessAllyPct + achBonus.allyHpPct + synBonus.allyHpPct) / 100);
+      (1 + (skillBonus.allyHpPct + blessAllyPct + achBonus.allyHpPct + synBonus.allyHpPct + engBonus.allyHpPct) / 100);
     const sharedAtk = atk * shareRate;
     const sharedHp = hp * shareRate;
     bonus += (ally.baseAtk * atkMult + sharedAtk) * 1.15 + (ally.baseHp * hpMult + sharedHp) * 0.14;
@@ -4589,6 +4749,18 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
     targetTab: 'PREP',
     actionLabel: 'ボスラッシュを確認',
     isUnlocked: (save) => areAllAchievementsUnlocked(save),
+  },
+  {
+    id: 'unlock_loop5_engrave',
+    badge: '5周目新要素解放',
+    title: '鍛冶屋の新強化「秘紋刻印（アイテム刻印）」が解放！',
+    description:
+      '第5周目到達により、鍛冶屋で所持アイテムに6種の「秘紋刻印（覇道・守護・神速・吸魂・絆魂・黄金）」を刻めるようになりました！精錬(+5)と重ねてアイテムをさらなる高みへ強化できます！',
+    spriteId: 'item_sage_orb',
+    accent: 'purple',
+    targetTab: 'FORGE',
+    actionLabel: '鍛冶屋で刻印する',
+    isUnlocked: (save) => isItemEngravingUnlocked(save),
   },
   {
     id: 'unlock_endless',

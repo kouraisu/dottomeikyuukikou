@@ -18,6 +18,7 @@ import {
   ENDLESS_BENCHMARK_LOOP,
   ENDLESS_RARE_PART_IDS,
   ENEMIES,
+  ENGRAVING_UNLOCK_LOOP,
   FEATURE_UNLOCKS,
   FORGE_RECIPES,
   getAchievementBonuses,
@@ -33,11 +34,14 @@ import {
   getEffectiveTotalMeterCap,
   getEffectiveTypeMeterCap,
   getEnemyStageHint,
+  getEngravingSummaryFromPouch,
   getFeatureUnlocks,
   getHeroTrainBulkCost,
   getHeroTrainStepCost,
   getItemEffectiveAutoPower,
   getItemEffectiveStats,
+  getItemEngravingCost,
+  getItemEngravingDef,
   getItemMeterCost,
   getItemRefineCost,
   getItemRefineRangeCost,
@@ -60,12 +64,14 @@ import {
   INSTANT_EVENTS,
   isCustomAllyUnlocked,
   isEndlessUnlocked,
+  isItemEngravingUnlocked,
   isItemUnlockedInShop,
   isStageClearedInCurrentLoop,
   isStageUnlockedForPlay,
   isTabUnlocked,
   isTrueEndgameUnlocked,
   isTrueEndgameVisible,
+  ITEM_ENGRAVINGS,
   ITEMS,
   MATERIAL_INFO,
   MAX_ITEM_REFINE,
@@ -80,6 +86,7 @@ import {
   AutoEquipPlaystyle,
   EventChoiceMode,
   ItemCategory,
+  ItemEngravingId,
   SaveState,
   SkillTreeBranch,
   TownTab,
@@ -108,6 +115,8 @@ interface TownViewProps {
   onCraftRecipe: (recipeId: string) => void;
   onRefineItem: (itemId: string, toMax?: boolean) => void;
   onBulkRefinePouch: () => void;
+  onEngraveItem: (itemId: string, engravingId: ItemEngravingId) => void;
+  onClearEngraving: (itemId: string) => void;
   onSalvageItem: (itemId: string) => void;
   onBulkSalvageSurplus: () => void;
   onExchangeCrest: (optionId: string) => void;
@@ -189,6 +198,8 @@ export const TownView: React.FC<TownViewProps> = ({
   onCraftRecipe,
   onRefineItem,
   onBulkRefinePouch,
+  onEngraveItem,
+  onClearEngraving,
   onSalvageItem,
   onBulkSalvageSurplus,
   onExchangeCrest,
@@ -223,7 +234,9 @@ export const TownView: React.FC<TownViewProps> = ({
   const [compendiumFilter, setCompendiumFilter] = useState<'ALL' | 'ENEMIES' | 'EVENTS' | 'ITEMS'>('ALL');
   const [compendiumOnlyMissing, setCompendiumOnlyMissing] = useState(false);
   const [achCategoryFilter, setAchCategoryFilter] = useState<'ALL' | 'CHALLENGE' | 'COMBAT' | 'BOND' | 'PROGRESSION'>('ALL');
-  const [forgeSubTab, setForgeSubTab] = useState<'RECIPES' | 'REFINE' | 'SALVAGE' | 'EXCHANGE'>('RECIPES');
+  const [forgeSubTab, setForgeSubTab] = useState<
+    'RECIPES' | 'REFINE' | 'ENGRAVE' | 'SALVAGE' | 'EXCHANGE'
+  >('RECIPES');
   const [confirmNextLoop, setConfirmNextLoop] = useState(false);
   const [shrineImgErr, setShrineImgErr] = useState(false);
   const [gateImgErr, setGateImgErr] = useState(false);
@@ -947,6 +960,7 @@ export const TownView: React.FC<TownViewProps> = ({
                   const usedInPouch = pouchCounts[item.id] ?? 0;
                   const available = qty - usedInPouch;
                   const refineLv = (save.itemRefineLevels ?? {})[item.id] ?? 0;
+                  const eng = getItemEngravingDef((save.itemEngravings ?? {})[item.id]);
                   const pouchFull = filledCount >= MAX_POUCH_SLOTS;
                   const meterCost = getItemMeterCost(item.id);
                   const typeOverCap =
@@ -979,6 +993,13 @@ export const TownView: React.FC<TownViewProps> = ({
                                   +{refineLv}
                                 </span>
                               )}
+                              {eng && (
+                                <span
+                                  className={`ml-1.5 px-1 py-0.5 text-[10px] font-bold border align-middle ${eng.badgeBgClass}`}
+                                >
+                                  {eng.shortTag}
+                                </span>
+                              )}
                             </span>
                             <span className="font-num text-xs text-slate-300 shrink-0">
                               所持 {qty}
@@ -991,7 +1012,7 @@ export const TownView: React.FC<TownViewProps> = ({
                             {item.description}
                           </p>
                           <div className="text-[11px] text-amber-300/90 font-num mt-1">
-                            {formatItemStats(item.id, save.itemRefineLevels)}
+                            {formatItemStats(item.id, save.itemRefineLevels, save.itemEngravings)}
                           </div>
                         </div>
                       </div>
@@ -2656,7 +2677,7 @@ export const TownView: React.FC<TownViewProps> = ({
                                   {it.description}
                                 </p>
                                 <div className="text-[11px] text-amber-300/90 font-num mt-1">
-                                  {formatItemStats(it.id, save.itemRefineLevels)}
+                                  {formatItemStats(it.id, save.itemRefineLevels, save.itemEngravings)}
                                 </div>
                                 {loreUnlocked ? (
                                   it.lore && (
@@ -2705,6 +2726,12 @@ export const TownView: React.FC<TownViewProps> = ({
               {([
                 { id: 'RECIPES', label: '装備鍛造' },
                 { id: 'REFINE', label: '装備精錬 (+強化)' },
+                {
+                  id: 'ENGRAVE',
+                  label: isItemEngravingUnlocked(save)
+                    ? '秘紋刻印'
+                    : `秘紋刻印 (${ENGRAVING_UNLOCK_LOOP}周目)`,
+                },
                 { id: 'SALVAGE', label: '余剰分解' },
                 { id: 'EXCHANGE', label: '踏破の証 交換所' },
               ] as const).map((sub) => (
@@ -2712,13 +2739,16 @@ export const TownView: React.FC<TownViewProps> = ({
                   key={sub.id}
                   type="button"
                   onClick={() => setForgeSubTab(sub.id)}
-                  className={`px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     forgeSubTab === sub.id
                       ? 'bg-amber-500 text-slate-950'
                       : 'bg-[#12151d] text-slate-300 hover:text-white border border-[#2b3040]'
                   }`}
                 >
-                  {sub.label}
+                  {sub.id === 'ENGRAVE' && !isItemEngravingUnlocked(save) && (
+                    <Lock className="w-3 h-3 shrink-0 opacity-75" />
+                  )}
+                  <span>{sub.label}</span>
                 </button>
               ))}
             </div>
@@ -2789,7 +2819,7 @@ export const TownView: React.FC<TownViewProps> = ({
                           </div>
                           <p className="text-xs text-slate-300 mt-1">{item.description}</p>
                           <div className="text-[11px] text-amber-300/90 font-num mt-1">
-                            {formatItemStats(item.id, save.itemRefineLevels)}
+                            {formatItemStats(item.id, save.itemRefineLevels, save.itemEngravings)}
                           </div>
                         </div>
                       </div>
@@ -3027,7 +3057,7 @@ export const TownView: React.FC<TownViewProps> = ({
                                   </span>
                                 </div>
                                 <div className="text-[11px] text-sky-300 font-num mt-1">
-                                  {formatItemStats(item.id, save.itemRefineLevels)}
+                                  {formatItemStats(item.id, save.itemRefineLevels, save.itemEngravings)}
                                 </div>
                               </div>
                             </div>
@@ -3100,6 +3130,237 @@ export const TownView: React.FC<TownViewProps> = ({
                                 </div>
                               </div>
                             )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {forgeSubTab === 'ENGRAVE' && (() => {
+              const unlocked = isItemEngravingUnlocked(save);
+              if (!unlocked) {
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-[#12151d] border-2 border-purple-500/40 p-5 text-center space-y-2">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-purple-950/90 border border-purple-400/70 text-purple-200">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>第{ENGRAVING_UNLOCK_LOOP}周目到達で解放 · 現在 第{save.loopCount}周目</span>
+                      </div>
+                      <h3 className="font-pixel text-base sm:text-lg text-amber-300">
+                        鍛冶屋新強化「秘紋刻印（アイテム刻印）」
+                      </h3>
+                      <p className="text-xs text-slate-300 max-w-xl mx-auto leading-relaxed">
+                        第{ENGRAVING_UNLOCK_LOOP}周目へ転生すると、所持しているアイテムに6種類の古代秘紋から1つを刻印できるようになります。アイテム自身の性能増幅に加え、持ち込み袋に入れるだけで勇者や仲間全体に強力な固有効果を発揮します。
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {ITEM_ENGRAVINGS.map((eng) => (
+                        <div
+                          key={eng.id}
+                          className="bg-[#12151d] border border-[#2b3040] p-3 space-y-1 opacity-80"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 text-[10px] font-bold border ${eng.badgeBgClass}`}>
+                              {eng.shortTag}
+                            </span>
+                            <span className={`text-xs font-bold ${eng.colorClass}`}>{eng.name}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-300 font-num">{eng.description}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              const ownedList = Object.entries(save.inventory)
+                .filter(([, qty]) => qty > 0)
+                .map(([id, qty]) => ({ item: ITEMS[id], qty }))
+                .filter((e) => Boolean(e.item))
+                .sort((a, b) => {
+                  const aEquipped = save.pouch.includes(a.item.id) ? 0 : 1;
+                  const bEquipped = save.pouch.includes(b.item.id) ? 0 : 1;
+                  if (aEquipped !== bEquipped) return aEquipped - bEquipped;
+                  const aEng = save.itemEngravings?.[a.item.id] ? 0 : 1;
+                  const bEng = save.itemEngravings?.[b.item.id] ? 0 : 1;
+                  return aEng - bEng;
+                });
+
+              const activeSummary = getEngravingSummaryFromPouch(save.pouch, save.itemEngravings);
+              const activeParts = [
+                activeSummary.heroAtkPct > 0 ? `勇者攻撃+${activeSummary.heroAtkPct}%` : '',
+                activeSummary.heroDefPct > 0 ? `勇者防御+${activeSummary.heroDefPct}%` : '',
+                activeSummary.heroHpPct > 0 ? `勇者HP+${activeSummary.heroHpPct}%` : '',
+                activeSummary.spdPct > 0 ? `攻撃速度+${activeSummary.spdPct}%` : '',
+                activeSummary.critPct > 0 ? `会心+${activeSummary.critPct}%` : '',
+                activeSummary.critDmgPct > 0 ? `会心ダメ+${activeSummary.critDmgPct}%` : '',
+                activeSummary.lifestealPct > 0 ? `吸血+${activeSummary.lifestealPct}%` : '',
+                activeSummary.dmgReductionPct > 0 ? `被ダメ-${activeSummary.dmgReductionPct}%` : '',
+                activeSummary.roomHeal > 0 ? `部屋回復+${activeSummary.roomHeal}` : '',
+                activeSummary.allyPowerPct > 0 ? `仲間能力+${activeSummary.allyPowerPct}%` : '',
+                activeSummary.allyHpPct > 0 ? `仲間HP+${activeSummary.allyHpPct}%` : '',
+                activeSummary.allySpdPct > 0 ? `仲間速度+${activeSummary.allySpdPct}%` : '',
+                activeSummary.allyCritPct > 0 ? `仲間会心+${activeSummary.allyCritPct}%` : '',
+                activeSummary.goldPct > 0 ? `獲得G+${activeSummary.goldPct}%` : '',
+                activeSummary.dropPct > 0 ? `素材ドロップ+${activeSummary.dropPct}%` : '',
+              ].filter(Boolean);
+
+              return (
+                <div className="space-y-3">
+                  <div className="bg-[#12151d] border border-[#2b3040] p-3.5 space-y-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs text-slate-300 leading-relaxed">
+                        所持アイテムに<span className="text-amber-300 font-bold">秘紋刻印</span>を1つ刻み、装備性能の大幅増幅とパーティ全体への固有効果を付与します（上書き・解除自由、今周回中有効）。
+                      </div>
+                      <span className="font-num text-[11px] px-2 py-0.5 bg-purple-950/90 border border-purple-400/70 text-purple-200 font-bold shrink-0">
+                        持ち込み発動中: {activeSummary.engravedCount}枠
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {ITEM_ENGRAVINGS.map((eng) => (
+                        <div
+                          key={eng.id}
+                          className="bg-[#171b26] border border-[#2a3042] px-2.5 py-2 space-y-0.5"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-1.5 py-0.5 text-[10px] font-bold border ${eng.badgeBgClass}`}>
+                              {eng.shortTag}
+                            </span>
+                            <span className={`text-xs font-bold ${eng.colorClass}`}>{eng.name}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-300 font-num leading-snug">
+                            {eng.description}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {activeParts.length > 0 && (
+                      <div className="pt-2 border-t border-[#232836] text-[11px] font-num text-emerald-300">
+                        現在の持ち込み袋 刻印合計効果: {activeParts.join(' · ')}
+                      </div>
+                    )}
+                  </div>
+
+                  {ownedList.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400 border border-dashed border-[#2b3040]">
+                      刻印できるアイテムを所持していません。
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      {ownedList.map(({ item, qty }) => {
+                        const refineLv = (save.itemRefineLevels ?? {})[item.id] ?? 0;
+                        const curEngId = (save.itemEngravings ?? {})[item.id];
+                        const curEng = getItemEngravingDef(curEngId);
+                        const cost = getItemEngravingCost(item.id);
+                        const isEquipped = save.pouch.includes(item.id);
+                        const canAfford =
+                          save.gold >= cost.gold &&
+                          save.materials.iron_ore >= cost.iron &&
+                          save.materials.magic_stone >= cost.stone &&
+                          save.materials.ancient_scroll >= cost.scroll;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`pixel-slot p-3.5 flex flex-col justify-between gap-3 ${
+                              curEng ? 'border-purple-400/60' : ''
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="w-11 h-11 bg-[#1b1f2b] border border-[#2e3446] flex items-center justify-center shrink-0">
+                                <PixelSprite id={item.spriteId} size={32} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className={`font-bold text-sm truncate ${RARITY_COLOR[item.rarity]}`}>
+                                    {item.name}
+                                    {refineLv > 0 && (
+                                      <span className="ml-1 font-num text-xs text-emerald-300">
+                                        +{refineLv}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {isEquipped && (
+                                      <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500/20 border border-amber-400/60 text-amber-200">
+                                        装備中
+                                      </span>
+                                    )}
+                                    <span className="font-num text-xs text-slate-400">所持{qty}</span>
+                                  </div>
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  {curEng ? (
+                                    <span className={`px-1.5 py-0.5 text-[10px] font-bold border ${curEng.badgeBgClass}`}>
+                                      刻印中: {curEng.name} ({curEng.description})
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-slate-500">未刻印</span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-sky-300 font-num mt-1">
+                                  {formatItemStats(item.id, save.itemRefineLevels, save.itemEngravings)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-[#232836] space-y-2">
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-num">
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                  <span className="text-[11px] text-slate-400">費用:</span>
+                                  <span className={save.gold >= cost.gold ? 'text-amber-300' : 'text-red-400'}>
+                                    {cost.gold}G
+                                  </span>
+                                  <span className={save.materials.iron_ore >= cost.iron ? 'text-slate-200' : 'text-red-400'}>
+                                    鉄 {save.materials.iron_ore}/{cost.iron}
+                                  </span>
+                                  <span className={save.materials.magic_stone >= cost.stone ? 'text-sky-300' : 'text-red-400'}>
+                                    魔石 {save.materials.magic_stone}/{cost.stone}
+                                  </span>
+                                  <span className={save.materials.ancient_scroll >= cost.scroll ? 'text-amber-200' : 'text-red-400'}>
+                                    古文書 {save.materials.ancient_scroll}/{cost.scroll}
+                                  </span>
+                                </div>
+                                {curEng && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onClearEngraving(item.id)}
+                                    className="px-2 py-0.5 text-[10px] bg-[#1e2330] hover:bg-rose-900/70 text-slate-300 hover:text-rose-200 border border-[#323a4f] cursor-pointer"
+                                  >
+                                    刻印解除
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                                {ITEM_ENGRAVINGS.map((eng) => {
+                                  const isSelected = curEngId === eng.id;
+                                  return (
+                                    <button
+                                      key={eng.id}
+                                      type="button"
+                                      disabled={isSelected || !canAfford}
+                                      onClick={() => onEngraveItem(item.id, eng.id)}
+                                      title={`${eng.name}: ${eng.description}`}
+                                      className={`px-2 py-1.5 text-[11px] font-bold border transition-colors cursor-pointer disabled:cursor-not-allowed ${
+                                        isSelected
+                                          ? `${eng.badgeBgClass} ring-1 ring-white/40`
+                                          : canAfford
+                                            ? 'bg-[#151924] hover:bg-[#232a3d] border-[#31384d] text-slate-200'
+                                            : 'bg-[#12141c] border-[#242836] text-slate-600'
+                                      }`}
+                                    >
+                                      {eng.shortTag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -3320,6 +3581,7 @@ export const TownView: React.FC<TownViewProps> = ({
                 const item = ITEMS[itemId];
                 if (!item) return null;
                 const refineLv = (save.itemRefineLevels ?? {})[item.id] ?? 0;
+                const eng = getItemEngravingDef((save.itemEngravings ?? {})[item.id]);
                 return (
                   <div
                     key={`${itemId}-${idx}`}
@@ -3329,6 +3591,13 @@ export const TownView: React.FC<TownViewProps> = ({
                       {idx + 1}. {item.name}
                       {refineLv > 0 && (
                         <span className="text-emerald-300 font-num ml-1">+{refineLv}</span>
+                      )}
+                      {eng && (
+                        <span
+                          className={`ml-1 px-1 py-0.5 text-[9px] font-bold border ${eng.badgeBgClass}`}
+                        >
+                          {eng.shortTag}
+                        </span>
                       )}
                       <span className="font-num text-[10px] text-slate-500 ml-1.5">
                         ({CATEGORY_SHORT[item.category]}·負荷{getItemMeterCost(item.id)})
@@ -3629,7 +3898,7 @@ export const TownView: React.FC<TownViewProps> = ({
                     <span className="text-rose-300 font-bold">リセット対象:</span> 所持金・素材・アイテム・道具屋品揃え・勇者Lv・仲間・加護・現在のメーター上限・習得スキルは初期状態に戻ります。
                   </div>
                   <div>
-                    <span className="text-emerald-300 font-bold">引き継ぎ＆転生特典:</span> 冒険記録（図鑑）と達成ボーナス・踏破の証(+2進呈)を引き継ぎ、初期SPが <span className="font-num text-amber-300 font-bold">{(save.loopCount + 1) * 2}SP</span> で開始。敵能力 <span className="font-num text-rose-300">{getLoopEnemyStatMult(save.loopCount + 1)}倍</span>・報酬増加・メーター天井解放に加え、{save.loopCount + 1 <= 4 ? `新たな裏ステージ「ステージ${maxStageForLoop + 1}」が開放されます！` : save.loopCount === 5 ? '第5周目制覇報酬「【無限】終わらぬ深淵回廊」も開放されます！' : '全ての裏ステージへさらに強敵化して挑めます！'}
+                    <span className="text-emerald-300 font-bold">引き継ぎ＆転生特典:</span> 冒険記録（図鑑）と達成ボーナス・踏破の証(+2進呈)を引き継ぎ、初期SPが <span className="font-num text-amber-300 font-bold">{(save.loopCount + 1) * 2}SP</span> で開始。敵能力 <span className="font-num text-rose-300">{getLoopEnemyStatMult(save.loopCount + 1)}倍</span>・報酬増加・メーター天井解放に加え、{save.loopCount + 1 <= 4 ? `新たな裏ステージ「ステージ${maxStageForLoop + 1}」が開放されます！` : save.loopCount + 1 === 5 ? '鍛冶屋の新強化「秘紋刻印（アイテム刻印）」が解放されます！' : save.loopCount === 5 ? '第5周目制覇報酬「【無限】終わらぬ深淵回廊」も開放されます！' : '全ての裏ステージへさらに強敵化して挑めます！'}
                   </div>
                 </div>
                 {!confirmNextLoop ? (
@@ -3997,11 +4266,13 @@ export const TownView: React.FC<TownViewProps> = ({
 
 function formatItemStats(
   itemId: string,
-  refineLevels?: Record<string, number>
+  refineLevels?: Record<string, number>,
+  itemEngravings?: Partial<Record<string, ItemEngravingId>>
 ): string {
   const item = ITEMS[itemId];
   if (!item) return '';
-  const stats = getItemEffectiveStats(itemId, refineLevels);
+  const stats = getItemEffectiveStats(itemId, refineLevels, itemEngravings);
+  const eng = getItemEngravingDef((itemEngravings ?? {})[itemId]);
   const parts: string[] = [];
   if (stats?.atk) parts.push(`攻撃+${stats.atk}`);
   if (stats?.def) parts.push(`防御+${stats.def}`);
@@ -4011,15 +4282,20 @@ function formatItemStats(
   if (stats?.lifesteal) parts.push(`吸血+${stats.lifesteal}%`);
   if (stats?.thorns) parts.push(`反射+${stats.thorns}%`);
   if (stats?.goldBonus) parts.push(`獲得G+${stats.goldBonus}%`);
+  if (stats?.dropBonus) parts.push(`ドロップ+${stats.dropBonus}%`);
   if (stats?.regenPerRoom) parts.push(`部屋回復+${stats.regenPerRoom}`);
   if (item.autoEffect) {
     const lv = (refineLevels ?? {})[itemId] ?? 0;
-    if (lv > 0) {
-      const effPower = getItemEffectiveAutoPower(itemId, refineLevels);
-      parts.push(`${item.autoEffect.description} (精錬+${lv}: 威力${effPower})`);
+    const hasConsEng = Boolean(eng?.consumablePowerPct);
+    if (lv > 0 || hasConsEng) {
+      const effPower = getItemEffectiveAutoPower(itemId, refineLevels, itemEngravings);
+      parts.push(`${item.autoEffect.description} (強化後威力${effPower})`);
     } else {
       parts.push(item.autoEffect.description);
     }
+  }
+  if (eng) {
+    parts.push(`[${eng.shortTag}: ${eng.description}]`);
   }
   return parts.join(' · ');
 }

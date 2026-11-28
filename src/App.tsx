@@ -47,6 +47,8 @@ import {
   getEffectiveTypeMeterCap,
   getHeroTrainBulkCost,
   getHeroTrainStepCost,
+  getItemEngravingCost,
+  getItemEngravingDef,
   getItemMeterCost,
   getItemRefineCost,
   getItemRefineRangeCost,
@@ -67,6 +69,7 @@ import {
   INITIAL_TYPE_METER_CAPS,
   isCustomAllyUnlocked,
   isEndlessUnlocked,
+  isItemEngravingUnlocked,
   isItemUnlockedInShop,
   isStageUnlockedForPlay,
   isTabUnlocked,
@@ -100,6 +103,7 @@ import {
   GameScreen,
   GameSpeed,
   ItemCategory,
+  ItemEngravingId,
   LifetimeStats,
   RunHistoryEntry,
   SaveState,
@@ -703,6 +707,7 @@ export default function App() {
           activeBlessings: [...p.activeBlessings],
         })),
         itemRefineLevels: {},
+        itemEngravings: {},
         seenAnnouncements: [...(prev.seenAnnouncements ?? [])],
         customAlly: prev.customAlly
           ? {
@@ -1093,6 +1098,69 @@ export default function App() {
       };
     });
   }, [showNotice]);
+
+  const handleEngraveItem = useCallback(
+    (itemId: string, engravingId: ItemEngravingId) => {
+      const item = ITEMS[itemId];
+      const eng = getItemEngravingDef(engravingId);
+      if (!item || !eng) return;
+      setSave((prev) => {
+        if (!isItemEngravingUnlocked(prev)) return prev;
+        if ((prev.inventory[itemId] ?? 0) <= 0) return prev;
+        if ((prev.itemEngravings ?? {})[itemId] === engravingId) return prev;
+        const cost = getItemEngravingCost(itemId);
+        if (
+          prev.gold < cost.gold ||
+          prev.materials.iron_ore < cost.iron ||
+          prev.materials.magic_stone < cost.stone ||
+          prev.materials.ancient_scroll < cost.scroll
+        ) {
+          return prev;
+        }
+        sound.heal();
+        showNotice(`${item.name} に「${eng.name}」を刻みました！（${eng.description}）`);
+        return {
+          ...prev,
+          gold: prev.gold - cost.gold,
+          materials: {
+            ...prev.materials,
+            iron_ore: prev.materials.iron_ore - cost.iron,
+            magic_stone: prev.materials.magic_stone - cost.stone,
+            ancient_scroll: prev.materials.ancient_scroll - cost.scroll,
+          },
+          itemEngravings: {
+            ...(prev.itemEngravings ?? {}),
+            [itemId]: engravingId,
+          },
+          lifetimeStats: addLifetimeDelta(prev.lifetimeStats, {
+            totalGoldSpent: cost.gold,
+            totalUpgrades: 1,
+          }),
+        };
+      });
+    },
+    [showNotice]
+  );
+
+  const handleClearEngraving = useCallback(
+    (itemId: string) => {
+      const item = ITEMS[itemId];
+      if (!item) return;
+      setSave((prev) => {
+        const cur = prev.itemEngravings ?? {};
+        if (!cur[itemId]) return prev;
+        const nextEngravings = { ...cur };
+        delete nextEngravings[itemId];
+        sound.click();
+        showNotice(`${item.name} の秘紋刻印を解除しました`);
+        return {
+          ...prev,
+          itemEngravings: nextEngravings,
+        };
+      });
+    },
+    [showNotice]
+  );
 
   const handleSalvageItem = useCallback(
     (itemId: string) => {
@@ -2482,6 +2550,8 @@ export default function App() {
             onCraftRecipe={handleCraftRecipe}
             onRefineItem={handleRefineItem}
             onBulkRefinePouch={handleBulkRefinePouch}
+            onEngraveItem={handleEngraveItem}
+            onClearEngraving={handleClearEngraving}
             onSalvageItem={handleSalvageItem}
             onBulkSalvageSurplus={handleBulkSalvageSurplus}
             onExchangeCrest={handleExchangeCrest}

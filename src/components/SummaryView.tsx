@@ -203,9 +203,11 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
               敵強さ <span className="font-num text-rose-300">{getLoopEnemyStatMult(nextLoop)}倍</span> になり、
               {nextLoop <= 4
                 ? `新たな裏ステージ「ステージ${maxStage + 1}」が開放されます！`
-                : result.loopCount === 5
-                  ? '第5周目制覇報酬「【無限】終わらぬ深淵回廊」も解禁されます！'
-                  : '全裏ステージがさらに強敵化して開放されます！'}
+                : nextLoop === 5
+                  ? '鍛冶屋の新強化「秘紋刻印（アイテム刻印）」が解放されます！'
+                  : result.loopCount === 5
+                    ? '第5周目制覇報酬「【無限】終わらぬ深淵回廊」も解禁されます！'
+                    : '全裏ステージがさらに強敵化して開放されます！'}
             </p>
             <div className="text-[11px] text-rose-300/90">
               ※ 所持金・素材・アイテム・道具屋品揃え・勇者Lv・仲間・加護・メーター上限・習得スキルはリセットされます。
