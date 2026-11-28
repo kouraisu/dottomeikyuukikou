@@ -154,6 +154,12 @@ export interface AbyssUpgradeDef {
   formatBonus: (level: number) => string;
 }
 
+export type AbyssExchangeResource =
+  | 'skillPoints'
+  | 'abyss_shard'
+  | 'void_gear'
+  | 'chaos_prism';
+
 export interface ForgeRecipe {
   id: string;
   resultItemId: string;

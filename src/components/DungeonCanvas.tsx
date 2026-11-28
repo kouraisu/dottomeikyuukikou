@@ -992,16 +992,28 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       if (!stage.isEndless || isPracticeRun) return;
       const baseRate = e.isBoss
         ? currentFloor >= 100
-          ? 0.007
+          ? 0.5
           : currentFloor >= 50
-            ? 0.004
-            : 0.002
-        : currentFloor >= 100
-          ? 0.0003
-          : currentFloor >= 50
-            ? 0.0002
-            : 0.0001;
-      const dropScale = Math.min(1.5, 1 + dropBonusPct / 400);
+            ? 0.36
+            : currentFloor >= 25
+              ? 0.24
+              : 0.15
+        : e.isElite
+          ? currentFloor >= 100
+            ? 0.06
+            : currentFloor >= 50
+              ? 0.04
+              : currentFloor >= 25
+                ? 0.025
+                : 0.015
+          : currentFloor >= 100
+            ? 0.018
+            : currentFloor >= 50
+              ? 0.012
+              : currentFloor >= 25
+                ? 0.008
+                : 0.005;
+      const dropScale = Math.min(2.0, 1 + dropBonusPct / 300);
       if (Math.random() >= baseRate * dropScale) return;
 
       const partId =
@@ -1012,13 +1024,13 @@ export const DungeonCanvas: React.FC<DungeonCanvasProps> = ({
       spawnParticles(e.x + 16, e.y + 12, info.color, 18, 1.5);
       addFloatText(e.x + 6, e.y - 20, `★${info.name}!`, info.color);
       pushLog(
-        `【超絶レアドロップ】無限回廊 ${currentFloor}Fで鍛冶パーツ「${info.name}」を獲得！！`,
+        `【希少ドロップ】無限回廊 ${currentFloor}Fで深淵素材「${info.name}」を獲得！`,
         'loot'
       );
       pushHighlight(
         'RARE_LOOT',
-        `幻の鍛冶パーツ「${info.name}」獲得！`,
-        `無限回廊 ${currentFloor}F（${e.name}撃破）で超絶低確率パーツを引き当てた！`,
+        `希少な深淵素材「${info.name}」獲得！`,
+        `無限回廊 ${currentFloor}F（${e.name}撃破）で深淵素材を引き当てた！`,
         info.spriteId
       );
     };

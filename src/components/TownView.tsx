@@ -3,6 +3,8 @@ import { Award, Compass, HelpCircle, History, Home, Lock, Repeat, RotateCcw, Spa
 import dungeonDepthsImg from '../assets/images/pixel_dungeon_depths_1795345080012.jpg';
 import shrineAltarImg from '../assets/images/pixel_sanctuary_altar_1795345079265.jpg';
 import {
+  ABYSS_EXCHANGE_COST,
+  ABYSS_EXCHANGE_RESOURCES,
   ABYSS_UPGRADES,
   ACHIEVEMENTS,
   ALLIES,
@@ -91,6 +93,7 @@ import {
   ULTIMATE_ITEM_IDS,
 } from '../game/data';
 import {
+  AbyssExchangeResource,
   AbyssUpgradeId,
   AutoEquipPlaystyle,
   EventChoiceMode,
@@ -144,6 +147,10 @@ interface TownViewProps {
   onUpgradeSpMastery: (steps?: number) => void;
   onResetSkills: () => void;
   onUpgradeAbyss: (id: AbyssUpgradeId) => void;
+  onExchangeAbyssResources: (
+    spend: Record<AbyssExchangeResource, number>,
+    target: AbyssExchangeResource
+  ) => void;
   onSelectStage: (stageId: number) => void;
   onSelectPracticeLoop: (loop: number | null) => void;
   onChangeEventMode: (mode: EventChoiceMode) => void;
@@ -228,6 +235,7 @@ export const TownView: React.FC<TownViewProps> = ({
   onUpgradeSpMastery,
   onResetSkills,
   onUpgradeAbyss,
+  onExchangeAbyssResources,
   onSelectStage,
   onSelectPracticeLoop,
   onChangeEventMode,
@@ -251,6 +259,13 @@ export const TownView: React.FC<TownViewProps> = ({
   const [confirmNextLoop, setConfirmNextLoop] = useState(false);
   const [shrineImgErr, setShrineImgErr] = useState(false);
   const [gateImgErr, setGateImgErr] = useState(false);
+  const [exchangeTarget, setExchangeTarget] = useState<AbyssExchangeResource>('abyss_shard');
+  const [exchangeSpend, setExchangeSpend] = useState<Record<AbyssExchangeResource, number>>({
+    skillPoints: 0,
+    abyss_shard: 0,
+    void_gear: 0,
+    chaos_prism: 0,
+  });
 
   const unlocks = useMemo(() => getFeatureUnlocks(save), [save]);
   const tabUnlocked = isTabUnlocked(activeTab, save);
@@ -443,7 +458,7 @@ export const TownView: React.FC<TownViewProps> = ({
                     <div
                       key={matKey}
                       className="flex items-center gap-2"
-                      title={`${MATERIAL_INFO[matKey].name}（無限回廊の全敵から超絶低確率でドロップ）`}
+                      title={`${MATERIAL_INFO[matKey].name}（無限回廊の全敵から希少確率でドロップ／深淵強化＆鍛冶＆錬成交換に使用）`}
                     >
                       <PixelSprite id={MATERIAL_INFO[matKey].spriteId} size={22} />
                       <div>
@@ -2961,7 +2976,7 @@ export const TownView: React.FC<TownViewProps> = ({
                                   className={`inline-flex items-center gap-1 ${
                                     ok ? 'text-purple-200' : 'text-red-400'
                                   }`}
-                                  title={`${MATERIAL_INFO[pid].name}（無限回廊の全敵から超絶低確率でドロップ）`}
+                                  title={`${MATERIAL_INFO[pid].name}（無限回廊の全敵から希少確率でドロップ／深淵錬成交換でも入手可）`}
                                 >
                                   <PixelSprite id={MATERIAL_INFO[pid].spriteId} size={15} />
                                   <span>
@@ -3544,7 +3559,67 @@ export const TownView: React.FC<TownViewProps> = ({
         )}
 
         {/* TAB 8: ABYSS ENHANCEMENT (Unlocked at Endless 10F, persists across reincarnations) */}
-        {tabUnlocked && activeTab === 'ABYSS' && (
+        {tabUnlocked && activeTab === 'ABYSS' && (() => {
+          const getHeldExchangeAmount = (resId: AbyssExchangeResource): number =>
+            resId === 'skillPoints' ? save.skillPoints : (save.materials[resId] ?? 0);
+
+          const clampedSpend: Record<AbyssExchangeResource, number> = {
+            skillPoints: Math.min(getHeldExchangeAmount('skillPoints'), Math.max(0, exchangeSpend.skillPoints)),
+            abyss_shard: Math.min(getHeldExchangeAmount('abyss_shard'), Math.max(0, exchangeSpend.abyss_shard)),
+            void_gear: Math.min(getHeldExchangeAmount('void_gear'), Math.max(0, exchangeSpend.void_gear)),
+            chaos_prism: Math.min(getHeldExchangeAmount('chaos_prism'), Math.max(0, exchangeSpend.chaos_prism)),
+          };
+          const totalSelected =
+            clampedSpend.skillPoints +
+            clampedSpend.abyss_shard +
+            clampedSpend.void_gear +
+            clampedSpend.chaos_prism;
+          const remainingToPick = Math.max(0, ABYSS_EXCHANGE_COST - totalSelected);
+          const totalHeldPool =
+            getHeldExchangeAmount('skillPoints') +
+            getHeldExchangeAmount('abyss_shard') +
+            getHeldExchangeAmount('void_gear') +
+            getHeldExchangeAmount('chaos_prism');
+          const isPureSelfTrade = clampedSpend[exchangeTarget] >= ABYSS_EXCHANGE_COST;
+          const canExecuteExchange =
+            totalSelected === ABYSS_EXCHANGE_COST && !isPureSelfTrade;
+          const targetMeta = ABYSS_EXCHANGE_RESOURCES.find((r) => r.id === exchangeTarget)!;
+
+          const adjustSpend = (resId: AbyssExchangeResource, delta: number) => {
+            setExchangeSpend((prev) => {
+              const cur = Math.min(getHeldExchangeAmount(resId), Math.max(0, prev[resId] ?? 0));
+              const otherSum = ABYSS_EXCHANGE_RESOURCES.reduce(
+                (sum, r) =>
+                  r.id === resId
+                    ? sum
+                    : sum + Math.min(getHeldExchangeAmount(r.id), Math.max(0, prev[r.id] ?? 0)),
+                0
+              );
+              const maxAllowed = Math.min(
+                getHeldExchangeAmount(resId),
+                Math.max(0, ABYSS_EXCHANGE_COST - otherSum)
+              );
+              const nextVal = Math.max(0, Math.min(maxAllowed, cur + delta));
+              return {
+                skillPoints: Math.min(getHeldExchangeAmount('skillPoints'), Math.max(0, prev.skillPoints ?? 0)),
+                abyss_shard: Math.min(getHeldExchangeAmount('abyss_shard'), Math.max(0, prev.abyss_shard ?? 0)),
+                void_gear: Math.min(getHeldExchangeAmount('void_gear'), Math.max(0, prev.void_gear ?? 0)),
+                chaos_prism: Math.min(getHeldExchangeAmount('chaos_prism'), Math.max(0, prev.chaos_prism ?? 0)),
+                [resId]: nextVal,
+              };
+            });
+          };
+
+          const resetExchangeSpend = () => {
+            setExchangeSpend({
+              skillPoints: 0,
+              abyss_shard: 0,
+              void_gear: 0,
+              chaos_prism: 0,
+            });
+          };
+
+          return (
           <section className="pixel-panel p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#2b3040] pb-3.5">
               <div>
@@ -3553,11 +3628,11 @@ export const TownView: React.FC<TownViewProps> = ({
                     深淵強化（転生永続引き継ぎ）
                   </h2>
                   <span className="px-2 py-0.5 text-[10px] font-bold bg-purple-950 border border-purple-400/70 text-purple-200">
-                    無限10F達成特典
+                    エンドコンテンツ
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  無限回廊10F到達で開かれた深淵の祭壇です。ここで鍛えた強化レベルは<span className="text-amber-300 font-bold">転生（周回リセット）を行っても永続で引き継がれ</span>、通常ステージと無限回廊50F以降の攻略を強力に支えます。
+                  無限回廊10F到達で開かれた極限の祭壇です。鍛えた強化レベルは<span className="text-amber-300 font-bold">転生を行っても永続で引き継がれます</span>。各強化には無限回廊で手に入る<span className="text-purple-300 font-bold">深淵の欠片・虚無の歯車・混沌の星晶</span>や踏破の証が必要です。
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -3571,9 +3646,16 @@ export const TownView: React.FC<TownViewProps> = ({
             <div className="pixel-slot p-3.5 space-y-2 border-purple-500/50 bg-[#151123]">
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="font-bold text-purple-200">現在発動中の深淵強化ボーナス</span>
-                <span className="font-num text-[11px] text-amber-300">
-                  所持: {save.gold.toLocaleString()}G · 証 {save.clearCrests} · 鉄 {save.materials.iron_ore} · 魔石 {save.materials.magic_stone} · 古文書 {save.materials.ancient_scroll}
-                </span>
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-num text-[11px]">
+                  <span className="text-amber-300">{save.gold.toLocaleString()}G</span>
+                  <span className="text-emerald-300">証 {save.clearCrests}</span>
+                  <span className="text-slate-200">鉄 {save.materials.iron_ore}</span>
+                  <span className="text-sky-300">魔石 {save.materials.magic_stone}</span>
+                  <span className="text-amber-200">古文書 {save.materials.ancient_scroll}</span>
+                  <span className="text-purple-300 font-bold">欠片 {save.materials.abyss_shard ?? 0}</span>
+                  <span className="text-sky-300 font-bold">歯車 {save.materials.void_gear ?? 0}</span>
+                  <span className="text-pink-300 font-bold">星晶 {save.materials.chaos_prism ?? 0}</span>
+                </div>
               </div>
               <div className="text-[11px] font-num text-emerald-300 leading-relaxed">
                 {[
@@ -3595,7 +3677,7 @@ export const TownView: React.FC<TownViewProps> = ({
                   abyssBonus.dropPct > 0 ? `ドロップ+${abyssBonus.dropPct}%` : '',
                 ]
                   .filter(Boolean)
-                  .join(' · ') || 'まだ強化されていません。下の5つの深淵力を強化してみましょう！'}
+                  .join(' · ') || 'まだ強化されていません。深淵素材を集めて5つの深淵力を強化してみましょう！'}
               </div>
             </div>
 
@@ -3609,7 +3691,19 @@ export const TownView: React.FC<TownViewProps> = ({
                 const hasIron = save.materials.iron_ore >= cost.iron;
                 const hasStone = save.materials.magic_stone >= cost.stone;
                 const hasScroll = save.materials.ancient_scroll >= cost.scroll;
-                const canAfford = !isMax && hasGold && hasCrests && hasIron && hasStone && hasScroll;
+                const hasShard = (save.materials.abyss_shard ?? 0) >= cost.abyss_shard;
+                const hasGear = (save.materials.void_gear ?? 0) >= cost.void_gear;
+                const hasPrism = (save.materials.chaos_prism ?? 0) >= cost.chaos_prism;
+                const canAfford =
+                  !isMax &&
+                  hasGold &&
+                  hasCrests &&
+                  hasIron &&
+                  hasStone &&
+                  hasScroll &&
+                  hasShard &&
+                  hasGear &&
+                  hasPrism;
 
                 return (
                   <div
@@ -3662,7 +3756,7 @@ export const TownView: React.FC<TownViewProps> = ({
                       </div>
                     ) : (
                       <div className="pt-2 border-t border-[#2b3040] space-y-2">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-num">
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-num">
                           <span className={hasGold ? 'text-amber-300' : 'text-red-400'}>
                             {cost.gold.toLocaleString()}G
                           </span>
@@ -3679,6 +3773,33 @@ export const TownView: React.FC<TownViewProps> = ({
                             古文書 {save.materials.ancient_scroll}/{cost.scroll}
                           </span>
                         </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-num bg-[#120e1c] border border-purple-500/35 px-2.5 py-1.5">
+                          {ENDLESS_RARE_PART_IDS.map((pid) => {
+                            const need = cost[pid];
+                            if (need <= 0) return null;
+                            const owned = save.materials[pid] ?? 0;
+                            const ok = owned >= need;
+                            const colorCls =
+                              pid === 'abyss_shard'
+                                ? 'text-purple-200'
+                                : pid === 'void_gear'
+                                  ? 'text-sky-200'
+                                  : 'text-pink-200';
+                            return (
+                              <span
+                                key={pid}
+                                className={`inline-flex items-center gap-1 font-bold ${
+                                  ok ? colorCls : 'text-red-400'
+                                }`}
+                              >
+                                <PixelSprite id={MATERIAL_INFO[pid].spriteId} size={15} />
+                                <span>
+                                  {MATERIAL_INFO[pid].name} {owned}/{need}
+                                </span>
+                              </span>
+                            );
+                          })}
+                        </div>
                         <button
                           type="button"
                           onClick={() => onUpgradeAbyss(upg.id)}
@@ -3687,7 +3808,7 @@ export const TownView: React.FC<TownViewProps> = ({
                         >
                           {canAfford
                             ? `深淵強化 Lv.${lv + 1} へ鍛える`
-                            : 'ゴールド・証・素材が不足'}
+                            : 'ゴールド・証・深淵素材が不足'}
                         </button>
                       </div>
                     )}
@@ -3695,8 +3816,183 @@ export const TownView: React.FC<TownViewProps> = ({
                 );
               })}
             </div>
+
+            {/* 5-for-1 Free-Choice Exchange between SP and Endless Rare Parts */}
+            <div className="pixel-slot p-4 space-y-3.5 border-amber-400/50 bg-[#14111f]">
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#2b3040] pb-2.5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-pixel text-base text-amber-300">
+                      深淵錬成交換（自由選択 5個 → 1個）
+                    </h3>
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 border border-amber-400/50 text-amber-200">
+                      5 : 1 変換
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                    スキルポイント（SP）・深淵の欠片・虚無の歯車・混沌の星晶の中から<span className="text-amber-300 font-bold">自由に合計5個</span>を消費して、望む資源<span className="text-emerald-300 font-bold">1個</span>へ錬成交換できます。
+                  </p>
+                </div>
+                <div className="font-num text-xs text-slate-300 text-right shrink-0">
+                  <div>所持合計: {totalHeldPool} 個</div>
+                  <div className={totalSelected === ABYSS_EXCHANGE_COST ? 'text-emerald-300 font-bold' : 'text-amber-300'}>
+                    選択中: {totalSelected} / {ABYSS_EXCHANGE_COST}
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 1: Choose target (+1) */}
+              <div className="space-y-1.5">
+                <div className="text-xs font-bold text-slate-200">
+                  ① 受け取る資源を選択（+1獲得）
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {ABYSS_EXCHANGE_RESOURCES.map((res) => {
+                    const selected = exchangeTarget === res.id;
+                    const held = getHeldExchangeAmount(res.id);
+                    return (
+                      <button
+                        key={res.id}
+                        type="button"
+                        onClick={() => setExchangeTarget(res.id)}
+                        className={`px-2.5 py-2 border text-left transition-colors cursor-pointer flex items-center gap-2 ${
+                          selected
+                            ? `bg-[#211a33] ${res.borderColorClass} text-white`
+                            : 'bg-[#10131c] border-[#2b3042] text-slate-300 hover:border-slate-400'
+                        }`}
+                      >
+                        <PixelSprite id={res.spriteId} size={20} />
+                        <div className="min-w-0 flex-1">
+                          <div className={`text-xs font-bold truncate ${res.textColorClass}`}>
+                            {res.shortName} +1
+                          </div>
+                          <div className="font-num text-[10px] text-slate-400">
+                            所持 {held}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 2: Freely pick 5 units to consume */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-200">
+                    ② 消費する5個を自由に割り振る（あと {remainingToPick} 個）
+                  </span>
+                  <button
+                    type="button"
+                    onClick={resetExchangeSpend}
+                    disabled={totalSelected === 0}
+                    className="px-2 py-0.5 text-[11px] bg-[#1e2330] hover:bg-[#2a3142] text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    選択リセット
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {ABYSS_EXCHANGE_RESOURCES.map((res) => {
+                    const held = getHeldExchangeAmount(res.id);
+                    const picked = clampedSpend[res.id];
+                    const canAdd = picked < held && remainingToPick > 0;
+                    const maxAddable = Math.min(held - picked, remainingToPick);
+
+                    return (
+                      <div
+                        key={res.id}
+                        className={`px-3 py-2.5 bg-[#10131c] border flex items-center justify-between gap-2 ${
+                          picked > 0 ? res.borderColorClass : 'border-[#2b3042]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <PixelSprite id={res.spriteId} size={22} />
+                          <div className="min-w-0">
+                            <div className={`text-xs font-bold truncate ${res.textColorClass}`}>
+                              {res.name}
+                            </div>
+                            <div className="font-num text-[11px] text-slate-400">
+                              所持 {held} · 消費{' '}
+                              <span className={picked > 0 ? 'text-white font-bold' : ''}>
+                                {picked}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => adjustSpend(res.id, -1)}
+                            disabled={picked <= 0}
+                            className="w-7 h-7 text-xs font-bold bg-[#1b202d] hover:bg-[#2a3144] text-slate-200 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            -1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustSpend(res.id, 1)}
+                            disabled={!canAdd}
+                            className="w-7 h-7 text-xs font-bold bg-[#1b202d] hover:bg-[#2a3144] text-amber-200 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            +1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => adjustSpend(res.id, maxAddable)}
+                            disabled={maxAddable <= 0}
+                            className="px-2 h-7 text-[11px] font-bold bg-purple-900/60 hover:bg-purple-800/80 text-purple-200 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                            title="残り枠または所持上限までまとめて追加"
+                          >
+                            最大
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#2b3040]">
+                <div className="text-xs font-num text-slate-300">
+                  {isPureSelfTrade ? (
+                    <span className="text-red-400">
+                      ※ 受け取り対象（{targetMeta.shortName}）のみを5個消費する交換はできません
+                    </span>
+                  ) : totalSelected === ABYSS_EXCHANGE_COST ? (
+                    <span className="text-emerald-300">
+                      {ABYSS_EXCHANGE_RESOURCES.filter((r) => clampedSpend[r.id] > 0)
+                        .map((r) => `${r.shortName}×${clampedSpend[r.id]}`)
+                        .join(' + ')}{' '}
+                      → <strong className={targetMeta.textColorClass}>{targetMeta.name} +1</strong>
+                    </span>
+                  ) : (
+                    <span>
+                      残り <strong className="text-amber-300">{remainingToPick}個</strong> を選んでください（全{ABYSS_EXCHANGE_COST}個）
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!canExecuteExchange}
+                  onClick={() => {
+                    onExchangeAbyssResources(clampedSpend, exchangeTarget);
+                    resetExchangeSpend();
+                  }}
+                  className="px-4 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:bg-[#262b38] disabled:text-slate-500 disabled:cursor-not-allowed transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  {canExecuteExchange
+                    ? `5個消費して ${targetMeta.shortName} +1 に交換`
+                    : totalHeldPool < ABYSS_EXCHANGE_COST
+                      ? '交換資源が合計5個未満'
+                      : `あと${remainingToPick}個選択してください`}
+                </button>
+              </div>
+            </div>
           </section>
-        )}
+          );
+        })()}
       </div>
 
       {/* RIGHT STICKY SIDEBAR: 5-SLOT POUCH + PARTY + STAGE SELECT (4 cols) */}
@@ -4307,9 +4603,9 @@ export const TownView: React.FC<TownViewProps> = ({
                     無限深淵チャレンジ（第{ENDLESS_BENCHMARK_LOOP}周目基準 · 固定倍率 {endlessStatMult}x · 最高記録: {save.bestEndlessFloor ?? 0}F）
                   </div>
                   <div className="text-[11px] text-slate-300 leading-relaxed">
-                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から超絶低確率で{trueEndgameVisible ? '鍛冶限定パーツ3種' : '希少な深淵素材3種'}（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。{' '}
+                    現在の周回数や仮潜入に影響されない固定難易度のエンドコンテンツです。階層が深くなるほど敵が強化され、戦利品も上位RARE〜最上位EPICが出現。5階ごとのボス撃破で踏破の証を獲得でき、15F以降のボスでは0.8%の超低確率で最強装備4種のいずれかが、さらに全ての敵から希少確率で{trueEndgameVisible ? '深淵・鍛冶パーツ3種' : '希少な深淵素材3種'}（深淵の欠片・虚無の歯車・混沌の星晶）がドロップします（敗北・撤退でも持ち帰り可能）。{' '}
                     <span className="text-purple-300 font-bold">
-                      10F到達で永続強化タブ「深淵強化」が開放！
+                      10F到達で永続強化タブ「深淵強化＆深淵錬成交換」が開放！
                     </span>
                     {trueEndgameVisible && (
                       <span className="text-amber-300 font-bold">

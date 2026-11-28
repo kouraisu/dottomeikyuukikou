@@ -1,4 +1,5 @@
 import {
+  AbyssExchangeResource,
   AbyssUpgradeDef,
   AbyssUpgradeId,
   AchievementBonus,
@@ -2058,7 +2059,7 @@ export const STAGES: StageDef[] = [
       name: '無限深淵の法則',
       shortEffect: '第6周目基準固定 · 毎階敵強化 · 10F深淵強化 · 50F真エンド開放',
       description:
-        '周回倍率に関わらず常に「第6周目基準（21.67倍）」の固定強さで始まり、階層が進むほどさらに強大化するチャレンジ迷宮。5階ごとのボス撃破で「踏破の証」と希少ドロップを獲得（15F以降で最強装備0.8%枠）。10F到達で拠点の永続強化タブ「深淵強化」が、50F突破で真のエンドコンテンツが解放されます！',
+        '周回倍率に関わらず常に「第6周目基準（21.67倍）」の固定強さで始まり、階層が進むほどさらに強大化するチャレンジ迷宮。5階ごとのボス撃破で「踏破の証」と希少な深淵パーツ3種（深淵の欠片・虚無の歯車・混沌の星晶）をドロップ（15F以降で最強装備0.8%枠）。10F到達で拠点の永続強化タブ「深淵強化＆深淵錬成交換」が、50F突破で真のエンドコンテンツが解放されます！',
     },
     minLoop: 1,
     isSecret: true,
@@ -3065,8 +3066,63 @@ export const ABYSS_UPGRADES: AbyssUpgradeDef[] = [
   },
 ];
 
+export const ABYSS_EXCHANGE_COST = 5;
+
+export const ABYSS_EXCHANGE_RESOURCES: {
+  id: AbyssExchangeResource;
+  name: string;
+  shortName: string;
+  spriteId: string;
+  textColorClass: string;
+  borderColorClass: string;
+}[] = [
+  {
+    id: 'skillPoints',
+    name: 'スキルポイント (SP)',
+    shortName: 'SP',
+    spriteId: 'item_sage_orb',
+    textColorClass: 'text-amber-300',
+    borderColorClass: 'border-amber-400/70',
+  },
+  {
+    id: 'abyss_shard',
+    name: MATERIAL_INFO.abyss_shard.name,
+    shortName: '欠片',
+    spriteId: MATERIAL_INFO.abyss_shard.spriteId,
+    textColorClass: 'text-purple-300',
+    borderColorClass: 'border-purple-400/70',
+  },
+  {
+    id: 'void_gear',
+    name: MATERIAL_INFO.void_gear.name,
+    shortName: '歯車',
+    spriteId: MATERIAL_INFO.void_gear.spriteId,
+    textColorClass: 'text-sky-300',
+    borderColorClass: 'border-sky-400/70',
+  },
+  {
+    id: 'chaos_prism',
+    name: MATERIAL_INFO.chaos_prism.name,
+    shortName: '星晶',
+    spriteId: MATERIAL_INFO.chaos_prism.spriteId,
+    textColorClass: 'text-pink-300',
+    borderColorClass: 'border-pink-400/70',
+  },
+];
+
+const ABYSS_RARE_PART_PRIORITY: Record<
+  AbyssUpgradeId,
+  readonly ['abyss_shard' | 'void_gear' | 'chaos_prism', 'abyss_shard' | 'void_gear' | 'chaos_prism', 'abyss_shard' | 'void_gear' | 'chaos_prism']
+> = {
+  abyss_blade: ['abyss_shard', 'chaos_prism', 'void_gear'],
+  abyss_bulwark: ['void_gear', 'abyss_shard', 'chaos_prism'],
+  abyss_legion: ['chaos_prism', 'void_gear', 'abyss_shard'],
+  abyss_siphon: ['abyss_shard', 'void_gear', 'chaos_prism'],
+  abyss_resonance: ['chaos_prism', 'abyss_shard', 'void_gear'],
+};
+
 export function getAbyssUpgradeCost(
-  _id: AbyssUpgradeId,
+  id: AbyssUpgradeId,
   currentLevel: number
 ): {
   gold: number;
@@ -3074,14 +3130,34 @@ export function getAbyssUpgradeCost(
   iron: number;
   stone: number;
   scroll: number;
+  abyss_shard: number;
+  void_gear: number;
+  chaos_prism: number;
 } {
   const lv = Math.max(0, Math.floor(currentLevel));
+  const [primary, secondary, tertiary] = ABYSS_RARE_PART_PRIORITY[id];
+  const rareCosts: Record<'abyss_shard' | 'void_gear' | 'chaos_prism', number> = {
+    abyss_shard: 0,
+    void_gear: 0,
+    chaos_prism: 0,
+  };
+  rareCosts[primary] = 1 + Math.floor(lv / 4);
+  if (lv >= 2) {
+    rareCosts[secondary] = 1 + Math.floor((lv - 2) / 5);
+  }
+  if (lv >= 5) {
+    rareCosts[tertiary] = 1 + Math.floor((lv - 5) / 5);
+  }
+
   return {
-    gold: 2500 + lv * 2200 + lv * lv * 350,
-    crests: 2 + Math.floor(lv / 2),
-    iron: 6 + lv * 3,
-    stone: 5 + lv * 3,
-    scroll: 3 + lv * 2,
+    gold: 4000 + lv * 3500 + lv * lv * 550,
+    crests: 2 + Math.floor((lv + 1) * 0.75),
+    iron: 10 + lv * 5,
+    stone: 8 + lv * 4,
+    scroll: 5 + lv * 3,
+    abyss_shard: rareCosts.abyss_shard,
+    void_gear: rareCosts.void_gear,
+    chaos_prism: rareCosts.chaos_prism,
   };
 }
 
@@ -4831,10 +4907,10 @@ export const FEATURE_UNLOCKS: Record<TownTab, FeatureUnlockDef> = {
     requiredStageCleared: 999,
     requiredStageName: '【無限】終わらぬ深淵回廊 10F',
     lockDescription:
-      '無限回廊で10Fに到達すると解禁される転生引き継ぎ型の恒久強化施設です。勇者・仲間・耐久・回復・財宝効率の5つの深淵力を鍛え上げ、50F以降の領域へ挑めます。',
-    guideTitle: '深淵強化：転生しても消えない5つの深淵力',
+      '無限回廊で10Fに到達すると解禁される高難度エンドコンテンツです。深淵の欠片・虚無の歯車・混沌の星晶などを消費して5つの深淵力を永続強化でき、SPや深淵素材を5個消費して1個へ変換できる深淵錬成交換も利用できます。',
+    guideTitle: '深淵強化＆深淵錬成交換：転生しても消えない極限強化',
     guideBody:
-      'ここで鍛えた深淵強化レベルは転生（周回リセット）を行っても永続で引き継がれます。無限回廊の10F〜50F以降の攻略に向けてバランスよく鍛えましょう。',
+      '深淵強化は無限回廊でドロップする「深淵の欠片」「虚無の歯車」「混沌の星晶」や踏破の証・素材を要するエンドコンテンツ強化です（転生してもレベルは永続引き継ぎ）。余ったSPや深淵素材を自由に計5個消費して望む1個へ交換できる「深淵錬成交換」も活用しましょう。',
   },
 };
 
@@ -5046,9 +5122,9 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
   {
     id: 'unlock_endless_10',
     badge: '無限10F達成報酬',
-    title: '新強化タブ「深淵強化」（転生永続引き継ぎ）が解放！',
+    title: '「深淵強化」＆「深淵錬成交換（5→1変換）」が解放！',
     description:
-      '無限回廊10F到達おめでとうございます！拠点に「深淵強化」タブが開放されました！ゴールド・踏破の証・素材で鍛えられる5系統の深淵強化は転生後も永続で引き継がれ、50F以降の強敵に立ち向かう強力な切り札となります！',
+      '無限回廊10F到達おめでとうございます！転生後も永続引き継ぎのエンド強化「深淵強化」（深淵の欠片・虚無の歯車・混沌の星晶が必要）と、SP・深淵素材3種から自由に5個消費して1個と交換できる「深淵錬成交換」が解放されました！',
     spriteId: 'item_god_aegis',
     accent: 'purple',
     targetTab: 'ABYSS',

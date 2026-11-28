@@ -19,6 +19,8 @@ import { SummaryView } from './components/SummaryView';
 import { TitleView } from './components/TitleView';
 import { TownView } from './components/TownView';
 import {
+  ABYSS_EXCHANGE_COST,
+  ABYSS_EXCHANGE_RESOURCES,
   ABYSS_UPGRADES,
   ACHIEVEMENTS,
   ALL_ACHIEVEMENT_IDS,
@@ -96,6 +98,7 @@ import {
 import { BgmTrack, BGM_TRACK_LABELS, sound } from './game/sound';
 import { syncCustomAllySprite } from './game/pixelSprites';
 import {
+  AbyssExchangeResource,
   AbyssUpgradeId,
   AchievementDef,
   AutoEquipPlaystyle,
@@ -1846,7 +1849,10 @@ export default function App() {
           prev.clearCrests < cost.crests ||
           prev.materials.iron_ore < cost.iron ||
           prev.materials.magic_stone < cost.stone ||
-          prev.materials.ancient_scroll < cost.scroll
+          prev.materials.ancient_scroll < cost.scroll ||
+          (prev.materials.abyss_shard ?? 0) < cost.abyss_shard ||
+          (prev.materials.void_gear ?? 0) < cost.void_gear ||
+          (prev.materials.chaos_prism ?? 0) < cost.chaos_prism
         ) {
           return prev;
         }
@@ -1862,6 +1868,9 @@ export default function App() {
             iron_ore: prev.materials.iron_ore - cost.iron,
             magic_stone: prev.materials.magic_stone - cost.stone,
             ancient_scroll: prev.materials.ancient_scroll - cost.scroll,
+            abyss_shard: (prev.materials.abyss_shard ?? 0) - cost.abyss_shard,
+            void_gear: (prev.materials.void_gear ?? 0) - cost.void_gear,
+            chaos_prism: (prev.materials.chaos_prism ?? 0) - cost.chaos_prism,
           },
           abyssUpgrades: {
             ...(prev.abyssUpgrades ?? {}),
@@ -1871,6 +1880,60 @@ export default function App() {
             totalGoldSpent: cost.gold,
             totalUpgrades: 1,
           }),
+        };
+      });
+    },
+    [showNotice]
+  );
+
+  const handleExchangeAbyssResources = useCallback(
+    (spend: Record<AbyssExchangeResource, number>, target: AbyssExchangeResource) => {
+      const targetMeta = ABYSS_EXCHANGE_RESOURCES.find((r) => r.id === target);
+      if (!targetMeta) return;
+      setSave((prev) => {
+        if (!isAbyssTabUnlocked(prev)) return prev;
+        let total = 0;
+        for (const res of ABYSS_EXCHANGE_RESOURCES) {
+          const amt = spend[res.id] ?? 0;
+          if (!Number.isInteger(amt) || amt < 0) return prev;
+          total += amt;
+        }
+        if (total !== ABYSS_EXCHANGE_COST) return prev;
+        if ((spend[target] ?? 0) >= ABYSS_EXCHANGE_COST) return prev;
+
+        if (
+          prev.skillPoints < (spend.skillPoints ?? 0) ||
+          (prev.materials.abyss_shard ?? 0) < (spend.abyss_shard ?? 0) ||
+          (prev.materials.void_gear ?? 0) < (spend.void_gear ?? 0) ||
+          (prev.materials.chaos_prism ?? 0) < (spend.chaos_prism ?? 0)
+        ) {
+          return prev;
+        }
+
+        const nextSp =
+          prev.skillPoints - (spend.skillPoints ?? 0) + (target === 'skillPoints' ? 1 : 0);
+        const nextMaterials = {
+          ...prev.materials,
+          abyss_shard:
+            (prev.materials.abyss_shard ?? 0) -
+            (spend.abyss_shard ?? 0) +
+            (target === 'abyss_shard' ? 1 : 0),
+          void_gear:
+            (prev.materials.void_gear ?? 0) -
+            (spend.void_gear ?? 0) +
+            (target === 'void_gear' ? 1 : 0),
+          chaos_prism:
+            (prev.materials.chaos_prism ?? 0) -
+            (spend.chaos_prism ?? 0) +
+            (target === 'chaos_prism' ? 1 : 0),
+        };
+
+        sound.heal();
+        showNotice(`深淵錬成交換：${ABYSS_EXCHANGE_COST}個消費して「${targetMeta.name} +1」を獲得！`);
+        return {
+          ...prev,
+          skillPoints: nextSp,
+          materials: nextMaterials,
         };
       });
     },
@@ -2632,6 +2695,7 @@ export default function App() {
             onUpgradeSpMastery={handleUpgradeSpMastery}
             onResetSkills={handleResetSkills}
             onUpgradeAbyss={handleUpgradeAbyss}
+            onExchangeAbyssResources={handleExchangeAbyssResources}
             onSelectStage={handleSelectStage}
             onSelectPracticeLoop={handleSelectPracticeLoop}
             onChangeEventMode={handleChangeEventMode}
