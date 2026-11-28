@@ -24,6 +24,7 @@ import {
   SaveState,
   SkillNodeDef,
   SkillNodeEffects,
+  SkillTreeBranch,
   StageDef,
   SynergyBonus,
   SynergyDef,
@@ -2987,6 +2988,78 @@ export function isTrueEndgameVisible(save: SaveState): boolean {
   return (save.bestEndlessFloor ?? 0) >= ENDLESS_TRUE_ENDGAME_REVEAL_FLOOR;
 }
 
+const BASE_SKILL_BRANCH_LABELS: Record<Exclude<SkillTreeBranch, 'TRANSCENDENT'>, string> = {
+  CONVENIENCE: '快適・便利の道',
+  WARRIOR: '剣聖の道',
+  GUARDIAN: '守護と絆の道',
+  EXPLORER: '探求と秘宝の道',
+  ALLY: '絆の指揮道',
+};
+
+export function getBaseSkillTreeProgress(
+  save: Pick<SaveState, 'unlockedSkills' | 'unlockedConveniences'>
+): {
+  unlockedCount: number;
+  totalRequired: number;
+  completed: boolean;
+  missingBranches: string[];
+} {
+  const unlockedSet = new Set<string>([
+    ...(save.unlockedSkills ?? []),
+    ...(save.unlockedConveniences ?? []),
+  ]);
+  const seenExclusives = new Set<string>();
+  let unlockedCount = 0;
+  let totalRequired = 0;
+  const missingBranchSet = new Set<Exclude<SkillTreeBranch, 'TRANSCENDENT'>>();
+
+  SKILL_TREE.forEach((node) => {
+    if (node.branch === 'TRANSCENDENT') return;
+    const branch = node.branch;
+    if (node.exclusiveWith) {
+      if (seenExclusives.has(node.id)) return;
+      seenExclusives.add(node.id);
+      seenExclusives.add(node.exclusiveWith);
+      totalRequired += 1;
+      if (unlockedSet.has(node.id) || unlockedSet.has(node.exclusiveWith)) {
+        unlockedCount += 1;
+      } else {
+        missingBranchSet.add(branch);
+      }
+      return;
+    }
+    totalRequired += 1;
+    if (unlockedSet.has(node.id)) {
+      unlockedCount += 1;
+    } else {
+      missingBranchSet.add(branch);
+    }
+  });
+
+  const orderedBranches: Exclude<SkillTreeBranch, 'TRANSCENDENT'>[] = [
+    'CONVENIENCE',
+    'WARRIOR',
+    'GUARDIAN',
+    'EXPLORER',
+    'ALLY',
+  ];
+
+  return {
+    unlockedCount,
+    totalRequired,
+    completed: totalRequired > 0 && unlockedCount >= totalRequired,
+    missingBranches: orderedBranches
+      .filter((b) => missingBranchSet.has(b))
+      .map((b) => BASE_SKILL_BRANCH_LABELS[b]),
+  };
+}
+
+export function isTranscendentUnlocked(
+  save: Pick<SaveState, 'bestEndlessFloor' | 'unlockedSkills' | 'unlockedConveniences'>
+): boolean {
+  return (save.bestEndlessFloor ?? 0) >= ENDLESS_TRUE_ENDGAME_FLOOR && getBaseSkillTreeProgress(save).completed;
+}
+
 export function hasConvenience(save: SaveState, id: ConvenienceUpgradeId): boolean {
   return (
     (save.unlockedSkills ?? []).includes(id) ||
@@ -4779,7 +4852,7 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncementDef[] = [
     badge: '真のエンドコンテンツ解放',
     title: '無限回廊 100F突破！裏実績・神域鍛造・超越スキルツリー（32x/64x）解放！',
     description:
-      '無限回廊100階到達おめでとうございます！①永続強化の「裏実績（全6種）」②鍛冶屋限定の究極装備4種 ③大量SPを消費して圧倒的な力と「32倍速(10SP) / 64倍速(20SP)」を得る新スキルツリー「深淵超越の道」が解禁されました！',
+      '無限回廊100階到達おめでとうございます！①永続強化の「裏実績（全6種）」②鍛冶屋限定の究極装備4種 ③通常スキルツリー全習得後に開放される、大量SPで「32倍速(10SP) / 64倍速(20SP)」や規格外の神域強化を得る「深淵超越の道」が解禁されました！',
     spriteId: 'item_void_lance',
     accent: 'purple',
     targetTab: 'SKILLS',

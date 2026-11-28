@@ -27,6 +27,7 @@ import {
   getAllyGearCost,
   getAllyTrainBulkCost,
   getAllyTrainStepCost,
+  getBaseSkillTreeProgress,
   getCustomAllyDef,
   getCompendiumBonuses,
   getCompendiumStats,
@@ -69,6 +70,7 @@ import {
   isStageClearedInCurrentLoop,
   isStageUnlockedForPlay,
   isTabUnlocked,
+  isTranscendentUnlocked,
   isTrueEndgameUnlocked,
   isTrueEndgameVisible,
   ITEM_ENGRAVINGS,
@@ -249,6 +251,8 @@ export const TownView: React.FC<TownViewProps> = ({
   const endlessUnlocked = useMemo(() => isEndlessUnlocked(save), [save]);
   const trueEndgameUnlocked = useMemo(() => isTrueEndgameUnlocked(save), [save]);
   const trueEndgameVisible = useMemo(() => isTrueEndgameVisible(save), [save]);
+  const baseSkillProgress = useMemo(() => getBaseSkillTreeProgress(save), [save]);
+  const transcendentUnlocked = useMemo(() => isTranscendentUnlocked(save), [save]);
   const customAllyUnlocked = useMemo(() => isCustomAllyUnlocked(save), [save]);
   const loreUnlocked = save.loopCount >= 2 || (save.highestClearedLoop ?? 0) >= 1;
   const presets = useMemo(() => save.presets ?? createDefaultPresets(), [save.presets]);
@@ -1898,7 +1902,7 @@ export const TownView: React.FC<TownViewProps> = ({
                         (save.unlockedConveniences ?? []).includes(reqId as never)
                     );
                   const canAfford = save.skillPoints >= node.costSp;
-                  const canLearn = trueEndgameUnlocked && !unlocked && reqMet && canAfford;
+                  const canLearn = transcendentUnlocked && !unlocked && reqMet && canAfford;
 
                   return (
                     <div
@@ -1933,11 +1937,13 @@ export const TownView: React.FC<TownViewProps> = ({
                         >
                           {!trueEndgameUnlocked
                             ? '無限回廊100F突破で解放'
-                            : !reqMet
-                              ? '前提スキル未習得'
-                              : !canAfford
-                                ? `SP不足 (要${node.costSp}SP)`
-                                : `習得する (${node.costSp}SP)`}
+                            : !baseSkillProgress.completed
+                              ? '通常スキル全習得で解放'
+                              : !reqMet
+                                ? '前提スキル未習得'
+                                : !canAfford
+                                  ? `SP不足 (要${node.costSp}SP)`
+                                  : `習得する (${node.costSp}SP)`}
                         </button>
                       )}
                     </div>
@@ -1947,37 +1953,59 @@ export const TownView: React.FC<TownViewProps> = ({
                 return (
                   <div
                     className={`pixel-slot p-4 space-y-3 border-2 ${
-                      trueEndgameUnlocked
+                      transcendentUnlocked
                         ? 'border-purple-400/75 bg-[#151123]'
-                        : 'border-[#332a46] bg-[#12131c] opacity-80'
+                        : 'border-[#332a46] bg-[#12131c] opacity-85'
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2c2540] pb-2.5">
                       <div>
                         <div className="flex items-center gap-2">
-                          {!trueEndgameUnlocked && <Lock className="w-4 h-4 text-purple-300 shrink-0" />}
+                          {!transcendentUnlocked && <Lock className="w-4 h-4 text-purple-300 shrink-0" />}
                           <span className="font-pixel text-base text-purple-300">
                             深淵超越の道（真・エンドコンテンツ）
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-300 mt-0.5">
-                          無限回廊100F突破で開放。大量のSP（10〜30SP）を要する代わりに、32倍速・64倍速や規格外の神域強化を得られます。
+                          無限回廊100F突破＆通常スキルツリー全開放で解放。大量のSP（10〜30SP）を要する代わりに、32倍速・64倍速や規格外の神域強化を得られます。
                         </p>
                       </div>
                       <span className="font-num text-xs font-bold text-amber-300 shrink-0">
-                        {trueEndgameUnlocked
-                          ? '開放済（100F突破）'
-                          : `最高記録 ${save.bestEndlessFloor ?? 0} / 100F`}
+                        {!trueEndgameUnlocked
+                          ? `最高記録 ${save.bestEndlessFloor ?? 0} / 100F · 通常 ${baseSkillProgress.unlockedCount}/${baseSkillProgress.totalRequired}`
+                          : !baseSkillProgress.completed
+                            ? `100F突破済 · 通常ツリー ${baseSkillProgress.unlockedCount}/${baseSkillProgress.totalRequired}`
+                            : '開放済（100F突破＆全習得）'}
                       </span>
                     </div>
 
                     {!trueEndgameUnlocked ? (
-                      <div className="bg-[#0e1018] border border-[#2a243b] px-4 py-5 text-center space-y-1">
+                      <div className="bg-[#0e1018] border border-[#2a243b] px-4 py-5 text-center space-y-1.5">
                         <div className="text-xs font-bold text-purple-200">
-                          【無限】終わらぬ深淵回廊 100F 到達で解放されます
+                          【無限】終わらぬ深淵回廊 100F 到達 ＆ 通常スキルツリー全習得で解放されます
                         </div>
                         <div className="text-[11px] text-slate-400">
                           「極限加速・32倍速 (10SP)」「神速領域・64倍速 (20SP)」や全ステータス+300%の真奥義がここに眠っています。
+                        </div>
+                        <div className="text-[11px] font-num text-amber-300/90">
+                          事前条件: 通常スキルツリー全習得 ({baseSkillProgress.unlockedCount} / {baseSkillProgress.totalRequired})
+                        </div>
+                      </div>
+                    ) : !baseSkillProgress.completed ? (
+                      <div className="bg-[#0e1018] border border-purple-500/40 px-4 py-5 text-center space-y-2">
+                        <div className="text-xs font-bold text-amber-300">
+                          無限回廊100F突破達成！解放には通常スキルツリーをすべて開放する必要があります
+                        </div>
+                        <div className="text-[11px] text-slate-300">
+                          「快適・便利の道」および「戦闘4系統（各排他選択はどちらか1つ）」をすべて習得すると開放されます。
+                        </div>
+                        <div className="text-xs font-num font-bold text-purple-200">
+                          通常スキル習得進捗: {baseSkillProgress.unlockedCount} / {baseSkillProgress.totalRequired}
+                          {baseSkillProgress.missingBranches.length > 0 && (
+                            <span className="text-rose-300 ml-2 font-normal">
+                              （未完了: {baseSkillProgress.missingBranches.join(' · ')}）
+                            </span>
+                          )}
                         </div>
                       </div>
                     ) : (

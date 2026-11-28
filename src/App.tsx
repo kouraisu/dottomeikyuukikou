@@ -73,6 +73,7 @@ import {
   isItemUnlockedInShop,
   isStageUnlockedForPlay,
   isTabUnlocked,
+  isTranscendentUnlocked,
   isTrueEndgameUnlocked,
   ITEMS,
   MAX_ITEM_REFINE,
@@ -1693,8 +1694,12 @@ export default function App() {
       const node = SKILL_TREE.find((n) => n.id === skillId);
       if (!node) return;
       setSave((prev) => {
-        if (node.branch === 'TRANSCENDENT' && !isTrueEndgameUnlocked(prev)) {
-          return prev;
+        if (node.branch === 'TRANSCENDENT') {
+          if (!isTrueEndgameUnlocked(prev)) return prev;
+          if (!isTranscendentUnlocked(prev)) {
+            showNotice('「深淵超越の道」は通常スキルツリーをすべて開放すると習得できます');
+            return prev;
+          }
         }
         const isConv =
           node.branch === 'CONVENIENCE' ||

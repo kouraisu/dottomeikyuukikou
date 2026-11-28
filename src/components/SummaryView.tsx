@@ -181,7 +181,7 @@ export const SummaryView: React.FC<SummaryViewProps> = ({
             </div>
             <p className="text-xs text-slate-200 leading-relaxed">
               深淵の100階を突破しました！①永続強化「裏実績（全6種）」②鍛冶屋限定の究極装備4種
-              ③大量SPを消費して圧倒的な力と「32倍速(10SP) / 64倍速(20SP)」を解放できる新スキルツリー「深淵超越の道」が解禁されました！
+              ③通常スキルツリー全開放後に大量SPを消費して圧倒的な力と「32倍速(10SP) / 64倍速(20SP)」を解放できる新スキルツリー「深淵超越の道」が解禁されました！
             </p>
           </div>
         )}
